@@ -13,7 +13,6 @@ const defaultIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-// PASTIKAN URL INI SUDAH BENAR-BENAR MILIK ANDA
 const API_URL = "https://script.google.com/macros/s/AKfycbxYpfxaD8K4w4IqrQNqFr5E_bwuJe_3fFgdt0WhYB73t7zrighKphN9_afqBmtTAHjc/exec"; 
 
 export default function App() {
@@ -21,11 +20,8 @@ export default function App() {
   const [dataReguler, setDataReguler] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // DEFAULT AWAL BUKA ADALAH DASHBOARD
   const [activeTab, setActiveTab] = useState('dashboard'); 
   const [activeMarker, setActiveMarker] = useState(null);
-  
-  // STATE UNTUK POPUP FOTO
   const [photoModal, setPhotoModal] = useState(null);
 
   const posisiMalang = [-8.1345, 112.5746];
@@ -48,7 +44,6 @@ export default function App() {
     fetchData();
   }, []);
 
-  // --- HELPER FORMATTING ---
   const formatRupiah = (angka) => {
     const num = parseInt(String(angka).replace(/[^0-9]/g, ''));
     if (isNaN(num)) return angka;
@@ -57,21 +52,25 @@ export default function App() {
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';
-    if (dateString.includes('T')) return dateString.split('T')[0]; // Memotong jam/zona waktu
+    if (dateString.includes('T')) return dateString.split('T')[0]; 
     return dateString;
   };
 
-  // Mengubah link viewer Google Drive menjadi link direct image untuk <img>
+  // FIX: Menggunakan API Thumbnail Google Drive agar gambar bisa dirender di tag <img>
   const getDirectImage = (url) => {
     if (!url) return null;
-    if (url.includes('drive.google.com/file/d/')) {
-      const id = url.split('/d/')[1].split('/')[0];
-      return `https://drive.google.com/uc?export=view&id=${id}`;
+    try {
+      if (url.includes('drive.google.com/file/d/')) {
+        const id = url.split('/d/')[1].split('/')[0];
+        // sz=w1000 berarti kita meminta gambar dengan lebar 1000px agar tidak pecah saat di-zoom
+        return `https://drive.google.com/thumbnail?id=${id}&sz=w1000`;
+      }
+    } catch (e) {
+      console.error("Error parsing URL", e);
     }
     return url;
   };
 
-  // --- LOGIKA PERHITUNGAN DASHBOARD ---
   const totalLokasi = dataSpasial.length;
   const penerimaSpasial = dataSpasial.reduce((acc, curr) => acc + (parseInt(curr.Penerima_Manfaat) || 0), 0);
   const penerimaReguler = dataReguler.reduce((acc, curr) => acc + (parseInt(curr.Jumlah_Penerima) || 0), 0);
@@ -90,7 +89,6 @@ export default function App() {
 
   const totalDana = danaReguler + danaSpasial;
 
-  // --- PERSIAPAN DATA LAPORAN ---
   const gabunganLaporan = [
     ...dataSpasial.map(item => ({
       kategori: 'Infrastruktur',
@@ -112,7 +110,6 @@ export default function App() {
     }))
   ];
 
-  // --- KOMPONEN MENU NAVBAR RESPONSIVE ---
   const renderNavbar = () => (
     <nav className="absolute top-2 left-2 right-2 md:top-4 md:left-4 md:right-4 z-[1000] liquid-glass rounded-xl md:rounded-2xl flex flex-col md:flex-row items-center justify-between px-4 py-3 md:px-6 md:py-4 shadow-sm gap-3 md:gap-0">
       <div className="flex items-center gap-3 w-full md:w-auto">
@@ -150,9 +147,6 @@ export default function App() {
       
       {renderNavbar()}
 
-      {/* ========================================= */}
-      {/* HALAMAN 1: DASHBOARD                      */}
-      {/* ========================================= */}
       {activeTab === 'dashboard' && (
         <div className="absolute inset-0 pt-32 md:pt-28 px-4 md:px-8 pb-8 overflow-y-auto z-10">
           <div className="max-w-5xl mx-auto space-y-4 md:space-y-6">
@@ -181,9 +175,6 @@ export default function App() {
         </div>
       )}
 
-      {/* ========================================= */}
-      {/* HALAMAN 2: PETA PUBLIK                    */}
-      {/* ========================================= */}
       {activeTab === 'peta' && (
         <>
           <MapContainer center={posisiMalang} zoom={11} zoomControl={false} style={{ height: "100vh", width: "100vw", zIndex: 0 }}>
@@ -207,7 +198,6 @@ export default function App() {
             })}
           </MapContainer>
 
-          {/* Panel Detail Kanan / Bawah (Responsive) */}
           <aside className="absolute bottom-4 left-4 right-4 md:top-28 md:bottom-auto md:left-auto md:right-4 z-[1000] md:w-80 liquid-glass rounded-2xl flex flex-col overflow-hidden max-h-[50vh] md:max-h-[75vh] shadow-xl">
             {activeMarker ? (
               <>
@@ -219,7 +209,6 @@ export default function App() {
                 </div>
                 
                 <div className="flex-1 overflow-y-auto">
-                  {/* Foto Langsung Tampil di Peta */}
                   {(activeMarker.URL_Foto_After || activeMarker.URL_Foto_Before || activeMarker.url_foto) && (
                     <img 
                       src={getDirectImage(activeMarker.URL_Foto_After || activeMarker.URL_Foto_Before || activeMarker.url_foto)} 
@@ -245,9 +234,6 @@ export default function App() {
         </>
       )}
 
-      {/* ========================================= */}
-      {/* HALAMAN 3: LAPORAN (GABUNGAN)             */}
-      {/* ========================================= */}
       {activeTab === 'laporan' && (
         <div className="absolute inset-0 pt-32 md:pt-28 px-4 md:px-8 pb-8 overflow-y-auto z-10">
           <div className="max-w-6xl mx-auto liquid-glass-solid rounded-2xl p-4 md:p-6 shadow-sm">
@@ -305,9 +291,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ========================================= */}
-      {/* POPUP (MODAL) FULLSCREEN FOTO             */}
-      {/* ========================================= */}
+      {/* POPUP (MODAL) FULLSCREEN FOTO */}
       {photoModal && (
         <div 
           className="fixed inset-0 z-[9999] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity"
@@ -320,12 +304,11 @@ export default function App() {
             >
               ✕
             </button>
-            {/* Foto Popup */}
             <img 
               src={photoModal} 
               className="max-w-full max-h-[85vh] rounded-xl object-contain shadow-2xl border-4 border-white/20" 
               alt="Dokumentasi Detail" 
-              onClick={(e) => e.stopPropagation()} // Mencegah klik gambar menutup modal
+              onClick={(e) => e.stopPropagation()} 
             />
           </div>
         </div>

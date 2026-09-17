@@ -64,18 +64,29 @@ export default function App() {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         
-        {!loading && dataSpasial.map((item, index) => {
-          // FIX 4: Validasi koordinat agar aplikasi tidak crash jika sel di spreadsheet kosong
-          const lat = parseFloat(item.Latitude);
-          const lng = parseFloat(item.Longitude);
-          if (isNaN(lat) || isNaN(lng)) return null;
+       {!loading && dataSpasial.map((item, index) => {
+          // Parsing string ke angka desimal, ganti koma jadi titik untuk berjaga-jaga
+          const latStr = String(item.Latitude).replace(',', '.');
+          const lngStr = String(item.Longitude).replace(',', '.');
+          
+          const lat = parseFloat(latStr);
+          const lng = parseFloat(lngStr);
+          
+          // Validasi Ketat: Cek apakah data kosong, bukan angka, atau di luar batas Bumi
+          if (
+            isNaN(lat) || isNaN(lng) || 
+            lat < -90 || lat > 90 || 
+            lng < -180 || lng > 180
+          ) {
+            console.warn(`Data diskip: Koordinat tidak valid pada ${item.Nama_Penerima}`);
+            return null; // Skip marker ini agar tidak membuat web crash
+          }
 
           return (
             <Marker 
               key={index} 
               position={[lat, lng]}
               eventHandlers={{
-                // INTERAKSI: Saat marker diklik, set state activeMarker
                 click: () => setActiveMarker(item),
               }}
             >

@@ -157,6 +157,7 @@ export default function App() {
       kategori: 'Infrastruktur',
       tanggal: item.Tanggal_Update,
       program: item.Jenis_Program,
+      namaPenerima: item.Nama_Penerima || item.nama_penerima || '-', // Membaca kolom Nama_Penerima
       wilayah: item.Kecamatan,
       penerima: item.Penerima_Manfaat,
       dana: item.penggunaan_dana || item.Penggunaan_Dana,
@@ -166,6 +167,7 @@ export default function App() {
       kategori: 'Reguler',
       tanggal: item.Periode_Laporan,
       program: item.Jenis_Program,
+      namaPenerima: item.Nama_Penerima || item.nama_penerima || item.Keterangan_Tambahan || item.Jenis_Program, // Membaca kolom Nama_Penerima
       wilayah: item.Wilayah_Kecamatan,
       penerima: `${item.Jumlah_Penerima} Penerima`,
       dana: item.Total_Nominal,
@@ -182,9 +184,8 @@ export default function App() {
 
   // --- FUNGSI SHARE WHATSAPP ---
   const handleShareGlobal = () => {
-    // Menghitung total dana spesifik tabel yang sedang terfilter
     const totalDanaLaporan = filteredLaporan.reduce((acc, curr) => acc + (parseInt(String(curr.dana).replace(/[^0-9]/g, '')) || 0), 0);
-    const domainLengkap = window.location.host; // Mendeteksi domain Vercel secara otomatis
+    const domainLengkap = window.location.host; 
     
     const text = `*Laporan Penyaluran Bantuan NH Malang* 📊\nPeriode: ${laporanYearFilter}\nProgram: ${laporanProgramFilter}\n\nTotal Data: ${filteredLaporan.length} Penyaluran\nTotal Dana Tersalurkan: ${formatRupiah(totalDanaLaporan)}\n\nCek rincian & foto dokumentasi lengkap di:\n🌐 https://${domainLengkap}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
@@ -192,10 +193,9 @@ export default function App() {
 
   const handleShareRow = (item) => {
     const domainLengkap = window.location.host;
-    const text = `*Detail Penyaluran NH Malang* 🌿\n\nProgram: ${item.program}\nWilayah: ${item.wilayah}\nTanggal: ${formatDate(item.tanggal)}\nPenerima Manfaat: ${item.penerima}\nDana Disalurkan: ${formatRupiah(item.dana)}\n\nCek peta persebaran & dokumentasinya di:\n🌐 https://${domainLengkap}`;
+    const text = `*Detail Penyaluran NH Malang* 🌿\n\nPenerima: ${item.namaPenerima}\nProgram: ${item.program}\nWilayah: ${item.wilayah}\nTanggal: ${formatDate(item.tanggal)}\nPenerima Manfaat: ${item.penerima}\nDana Disalurkan: ${formatRupiah(item.dana)}\n\nCek peta persebaran & dokumentasinya di:\n🌐 https://${domainLengkap}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
-
 
   const renderNavbar = () => (
     <nav className="absolute top-2 left-2 right-2 md:top-4 md:left-4 md:right-4 z-[1000] liquid-glass rounded-xl md:rounded-2xl flex flex-col md:flex-row items-center justify-between px-4 py-3 md:px-6 md:py-4 shadow-sm gap-3 md:gap-0">
@@ -407,10 +407,9 @@ export default function App() {
         <div className="absolute inset-0 pt-32 md:pt-28 px-4 md:px-8 pb-8 overflow-y-auto z-10">
           <div className="max-w-6xl mx-auto liquid-glass-solid rounded-2xl p-4 md:p-6 shadow-sm border border-white/50">
             
-            {/* Header Laporan, Filter, & Tombol Share Global */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-6">
               <div>
-                <h2 className="text-xl md:text-2xl font-bold text-teal-900 mb-3">Laporan Detail Penyaluran Laysos</h2>
+                <h2 className="text-xl md:text-2xl font-bold text-teal-900 mb-3">Detail Laporan Penyaluran Laysos</h2>
                 <div className="flex flex-wrap items-center gap-3">
                   <select 
                     className="bg-white/50 border border-white/50 text-teal-900 font-semibold text-sm rounded-lg p-2 outline-none focus:ring-1 focus:ring-teal-500"
@@ -432,7 +431,6 @@ export default function App() {
                 </div>
               </div>
               
-              {/* Tombol Share Keseluruhan (Global) */}
               <button 
                 onClick={handleShareGlobal}
                 className="flex items-center gap-2 bg-[#25D366] hover:bg-[#1ebe5d] text-white font-semibold py-2 px-4 rounded-xl shadow-lg shadow-green-500/30 transition whitespace-nowrap"
@@ -448,7 +446,10 @@ export default function App() {
                   <tr className="bg-teal-500/10 text-teal-900 border-b border-teal-500/20">
                     <th className="p-3 text-xs md:text-sm font-semibold">Tgl / Periode</th>
                     <th className="p-3 text-xs md:text-sm font-semibold">Kategori</th>
-                    <th className="p-3 text-xs md:text-sm font-semibold">Program & Wilayah</th>
+                    
+                    {/* 1. KEPALA KOLOM DIUBAH DI SINI */}
+                    <th className="p-3 text-xs md:text-sm font-semibold">Nama Penerima & Wilayah</th>
+                    
                     <th className="p-3 text-xs md:text-sm font-semibold text-center">Penerima</th>
                     <th className="p-3 text-xs md:text-sm font-semibold text-right">Nominal Dana</th>
                     <th className="p-3 text-xs md:text-sm font-semibold text-center">Dokumentasi</th>
@@ -472,10 +473,13 @@ export default function App() {
                             {item.program}
                           </span>
                         </td>
+                        
+                        {/* 2. ISI KOLOM DIPANGGIL DARI properti "namaPenerima" */}
                         <td className="p-3 text-xs md:text-sm text-teal-900">
-                          <strong>{item.kategori}</strong> <br/>
+                          <strong>{item.namaPenerima}</strong> <br/>
                           <span className="text-[10px] md:text-xs text-teal-700">{item.wilayah}</span>
                         </td>
+                        
                         <td className="p-3 text-xs md:text-sm text-teal-800 text-center">{item.penerima}</td>
                         <td className="p-3 text-xs md:text-sm text-teal-800 text-right font-medium">{formatRupiah(item.dana)}</td>
                         <td className="p-3 text-center">
@@ -490,7 +494,6 @@ export default function App() {
                             <span className="text-xs text-slate-400">-</span>
                           )}
                         </td>
-                        {/* Tombol Share per Baris */}
                         <td className="p-3 text-center">
                            <button 
                               onClick={() => handleShareRow(item)}

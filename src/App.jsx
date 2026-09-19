@@ -448,12 +448,12 @@ export default function App() {
                     <th className="p-3 text-xs md:text-sm font-semibold">Kategori</th>
                     
                     {/* 1. KEPALA KOLOM DIUBAH DI SINI */}
-                    <th className="p-3 text-xs md:text-sm font-semibold">Nama Penerima & Wilayah</th>
+                    <th className="p-3 text-xs md:text-sm font-semibold">Penerima & Wilayah</th>
                     
-                    <th className="p-3 text-xs md:text-sm font-semibold text-center">Penerima</th>
+                    <th className="p-3 text-xs md:text-sm font-semibold text-center">Penerima Manfaat</th>
                     <th className="p-3 text-xs md:text-sm font-semibold text-right">Nominal Dana</th>
                     <th className="p-3 text-xs md:text-sm font-semibold text-center">Dokumentasi</th>
-                    <th className="p-3 text-xs md:text-sm font-semibold text-center">Aksi</th>
+                    <th className="p-3 text-xs md:text-sm font-semibold text-center">Bagikan</th>
                   </tr>
                 </thead>
                 <tbody>

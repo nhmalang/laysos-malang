@@ -4,16 +4,6 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-const defaultIcon = new L.Icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
-
 const API_URL = "https://script.google.com/macros/s/AKfycbxYpfxaD8K4w4IqrQNqFr5E_bwuJe_3fFgdt0WhYB73t7zrighKphN9_afqBmtTAHjc/exec"; 
 
 export default function App() {
@@ -25,8 +15,13 @@ export default function App() {
   const [activeMarker, setActiveMarker] = useState(null);
   const [photoModal, setPhotoModal] = useState(null);
 
+  // Filter Dashboard
   const currentYear = new Date().getFullYear().toString();
   const [selectedYear, setSelectedYear] = useState(currentYear);
+
+  // Filter Peta (State Baru)
+  const [mapYearFilter, setMapYearFilter] = useState('Semua');
+  const [mapProgramFilter, setMapProgramFilter] = useState('Semua');
 
   const posisiMalang = [-8.1345, 112.5746];
   const CHART_COLORS = ['#0f766e', '#0ea5e9', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#f43f5e', '#3b82f6'];
@@ -49,6 +44,7 @@ export default function App() {
     fetchData();
   }, []);
 
+  // --- HELPER FORMATTING ---
   const formatRupiah = (angka) => {
     const num = parseInt(String(angka).replace(/[^0-9]/g, ''));
     if (isNaN(num)) return angka;
@@ -86,12 +82,38 @@ export default function App() {
       .filter(url => url && url.trim() !== '');
   };
 
-  // --- LOGIKA FILTER TAHUN ---
+  // --- PEMETAAN WARNA & KATEGORI GLOBAL ---
   const allYears = [...new Set([
     ...dataSpasial.map(d => getYear(d.Tanggal_Update)),
     ...dataReguler.map(d => getYear(d.Periode_Laporan))
   ])].filter(Boolean).sort((a, b) => b - a);
 
+  // Ambil semua Jenis Program yang unik dari kedua sheet
+  const allPrograms = [...new Set([
+    ...dataSpasial.map(d => d.Jenis_Program),
+    ...dataReguler.map(d => d.Jenis_Program)
+  ])].filter(Boolean);
+
+  // Pasangkan setiap Jenis Program dengan warnanya secara permanen
+  const programColors = {};
+  allPrograms.forEach((prog, index) => {
+    programColors[prog] = CHART_COLORS[index % CHART_COLORS.length];
+  });
+
+  // --- KREATOR PIN PETA (SVG DINAMIS) ---
+  const createCustomPin = (color) => {
+    // Membuat SVG Pin dengan warna yang disuntikkan secara dinamis
+    const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="36" height="36"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="${color}" stroke="#ffffff" stroke-width="1.5"/></svg>`;
+    return L.divIcon({
+      className: 'bg-transparent border-none', // Mencegah kotak putih bawaan Leaflet
+      html: svgIcon,
+      iconSize: [36, 36],
+      iconAnchor: [18, 36],
+      popupAnchor: [0, -36]
+    });
+  };
+
+  // --- LOGIKA FILTER DASHBOARD ---
   useEffect(() => {
     if (!loading && allYears.length > 0 && !allYears.includes(selectedYear)) {
        setSelectedYear('Semua');
@@ -101,28 +123,20 @@ export default function App() {
   const filteredSpasial = selectedYear === 'Semua' ? dataSpasial : dataSpasial.filter(d => getYear(d.Tanggal_Update) === selectedYear);
   const filteredReguler = selectedYear === 'Semua' ? dataReguler : dataReguler.filter(d => getYear(d.Periode_Laporan) === selectedYear);
 
-  // --- PERHITUNGAN KARTU METRIK ATAS ---
   const totalLokasi = filteredSpasial.length;
-  
   const penerimaSpasial = filteredSpasial.reduce((acc, curr) => acc + (parseInt(String(curr.Penerima_Manfaat).replace(/[^0-9]/g, '')) || 0), 0);
   const penerimaReguler = filteredReguler.reduce((acc, curr) => acc + (parseInt(String(curr.Jumlah_Penerima).replace(/[^0-9]/g, '')) || 0), 0);
-
   const danaReguler = filteredReguler.reduce((acc, curr) => acc + (parseInt(String(curr.Total_Nominal || '0').replace(/[^0-9]/g, '')) || 0), 0);
   const danaSpasial = filteredSpasial.reduce((acc, curr) => acc + (parseInt(String(curr.penggunaan_dana || curr.Penggunaan_Dana || '0').replace(/[^0-9]/g, '')) || 0), 0);
   const totalDana = danaReguler + danaSpasial;
 
-  // --- LOGIKA BARU: PENGELOMPOKAN BERDASARKAN "JENIS PROGRAM" ---
   const summaryMap = {};
-  
-  // Membaca data spasial (Misal: Sumur Bor, Bedah Rumah)
   filteredSpasial.forEach(item => {
     const prog = item.Jenis_Program || 'Lainnya';
     if (!summaryMap[prog]) summaryMap[prog] = { penerima: 0, dana: 0 };
     summaryMap[prog].penerima += (parseInt(String(item.Penerima_Manfaat).replace(/[^0-9]/g, '')) || 0);
     summaryMap[prog].dana += (parseInt(String(item.penggunaan_dana || item.Penggunaan_Dana || '0').replace(/[^0-9]/g, '')) || 0);
   });
-
-  // Membaca data reguler (Misal: Santunan Yatim, Guru Ngaji)
   filteredReguler.forEach(item => {
     const prog = item.Jenis_Program || 'Lainnya';
     if (!summaryMap[prog]) summaryMap[prog] = { penerima: 0, dana: 0 };
@@ -130,22 +144,27 @@ export default function App() {
     summaryMap[prog].dana += (parseInt(String(item.Total_Nominal || '0').replace(/[^0-9]/g, '')) || 0);
   });
 
-  // Mengubah Map menjadi Array dan menyuntikkan warna agar Tabel & Chart sinkron
-  const programSummary = Object.keys(summaryMap).map((key, index) => ({
+  const programSummary = Object.keys(summaryMap).map(key => ({
     name: key,
     penerima: summaryMap[key].penerima,
     dana: summaryMap[key].dana,
-    color: CHART_COLORS[index % CHART_COLORS.length]
+    color: programColors[key] || '#94a3b8' // Menggunakan warna dari peta global
   }));
 
-  // Memisahkan data khusus untuk Pie Chart (Hanya yang ada penggunaan dananya)
   const pieData = programSummary.filter(d => d.dana > 0).map(d => ({
     name: d.name,
     value: d.dana,
     color: d.color
   }));
 
-  // --- PERSIAPAN DATA LAPORAN ---
+  // --- LOGIKA FILTER PETA PUBLIK ---
+  const mapFilteredData = dataSpasial.filter(item => {
+    const isYearMatch = mapYearFilter === 'Semua' ? true : getYear(item.Tanggal_Update) === mapYearFilter;
+    const isProgramMatch = mapProgramFilter === 'Semua' ? true : item.Jenis_Program === mapProgramFilter;
+    return isYearMatch && isProgramMatch;
+  });
+
+  // --- LOGIKA DATA LAPORAN ---
   const gabunganLaporan = [
     ...dataSpasial.map(item => ({
       kategori: 'Infrastruktur',
@@ -206,21 +225,18 @@ export default function App() {
                   onChange={(e) => setSelectedYear(e.target.value)}
                 >
                   <option value="Semua">Semua Waktu</option>
-                  {allYears.map(yr => (
-                    <option key={yr} value={yr}>{yr}</option>
-                  ))}
+                  {allYears.map(yr => <option key={yr} value={yr}>{yr}</option>)}
                 </select>
               </div>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
-              <div className="liquid-glass-solid p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm hover:-translate-y-1 transition duration-300">
+              <div className="liquid-glass-solid p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm">
                 <span className="text-4xl mb-3">📍</span>
                 <h3 className="text-teal-800 font-semibold mb-2 text-sm uppercase tracking-wider">Total Lokasi Program</h3>
                 <p className="text-3xl font-bold text-teal-600">{loading ? '...' : totalLokasi} <span className="text-sm font-normal text-teal-800">Titik</span></p>
               </div>
-              
-              <div className="liquid-glass-solid p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm hover:-translate-y-1 transition duration-300">
+              <div className="liquid-glass-solid p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm">
                 <span className="text-4xl mb-3">👥</span>
                 <h3 className="text-teal-800 font-semibold mb-2 text-sm uppercase tracking-wider">Penerima Manfaat</h3>
                 {loading ? <p>...</p> : (
@@ -231,8 +247,7 @@ export default function App() {
                   </div>
                 )}
               </div>
-
-              <div className="liquid-glass-solid p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm sm:col-span-2 md:col-span-1 hover:-translate-y-1 transition duration-300">
+              <div className="liquid-glass-solid p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm sm:col-span-2 md:col-span-1">
                 <span className="text-4xl mb-3">💰</span>
                 <h3 className="text-teal-800 font-semibold mb-2 text-sm uppercase tracking-wider">Dana Tersalurkan</h3>
                 <p className="text-2xl font-bold text-teal-600">{loading ? '...' : formatRupiah(totalDana)}</p>
@@ -240,8 +255,6 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-12">
-              
-              {/* TABEL RINGKASAN BERDASARKAN JENIS PROGRAM */}
               <div className="liquid-glass-solid p-6 rounded-2xl shadow-sm">
                  <h3 className="text-lg font-bold text-teal-900 mb-6 uppercase tracking-wide">Ringkasan per Jenis Program</h3>
                  <div className="overflow-x-auto">
@@ -275,7 +288,6 @@ export default function App() {
                  </div>
               </div>
 
-              {/* GRAFIK LINGKARAN */}
               <div className="liquid-glass-solid p-6 rounded-2xl shadow-sm flex flex-col">
                  <h3 className="text-lg font-bold text-teal-900 mb-2 uppercase tracking-wide">Alokasi Dana</h3>
                  <div className="flex-1 min-h-[280px] w-full mt-4">
@@ -316,23 +328,33 @@ export default function App() {
         </div>
       )}
 
-      {/* --- PETA PUBLIK --- */}
+      {/* ========================================= */}
+      {/* PETA PUBLIK (DENGAN FILTER & PIN WARNA)   */}
+      {/* ========================================= */}
       {activeTab === 'peta' && (
         <>
           <MapContainer center={posisiMalang} zoom={11} zoomControl={false} style={{ height: "100vh", width: "100vw", zIndex: 0 }}>
             <TileLayer attribution='&copy; OSM' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             
-            {!loading && filteredSpasial.map((item, index) => {
+            {!loading && mapFilteredData.map((item, index) => {
               const lat = parseFloat(String(item.Latitude).replace(',', '.'));
               const lng = parseFloat(String(item.Longitude).replace(',', '.'));
               if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
 
+              // Mengambil warna dari dictionary programColors, fallback ke abu-abu jika tidak ada
+              const pinColor = programColors[item.Jenis_Program] || '#94a3b8';
+
               return (
-                <Marker key={index} position={[lat, lng]} icon={defaultIcon} eventHandlers={{ click: () => setActiveMarker(item) }}>
+                <Marker 
+                   key={index} 
+                   position={[lat, lng]} 
+                   icon={createCustomPin(pinColor)} 
+                   eventHandlers={{ click: () => setActiveMarker(item) }}
+                >
                   <Popup>
                     <div className="font-sans text-center">
                       <h3 className="font-bold text-teal-800">{item.Nama_Penerima}</h3>
-                      <p className="text-xs text-slate-600">Klik untuk detail</p>
+                      <p className="text-xs text-slate-600">{item.Jenis_Program}</p>
                     </div>
                   </Popup>
                 </Marker>
@@ -340,12 +362,50 @@ export default function App() {
             })}
           </MapContainer>
 
-          <aside className="absolute bottom-4 left-4 right-4 md:top-28 md:bottom-auto md:left-auto md:right-4 z-[1000] md:w-80 liquid-glass rounded-2xl flex flex-col overflow-hidden max-h-[60vh] md:max-h-[75vh] shadow-xl">
+          {/* PANEL FILTER PETA (Kiri Atas) */}
+          <div className="absolute top-28 left-4 md:left-6 z-[1000] liquid-glass rounded-2xl p-4 flex flex-col gap-3 shadow-md w-[calc(100%-2rem)] md:w-64">
+            <h3 className="text-sm font-bold text-teal-900 mb-1">Filter Peta</h3>
+            
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-teal-800">Tahun</label>
+              <select 
+                className="w-full bg-white/50 border border-white/50 text-teal-900 text-sm rounded-lg focus:ring-teal-500 p-2 outline-none"
+                value={mapYearFilter}
+                onChange={(e) => { setMapYearFilter(e.target.value); setActiveMarker(null); }}
+              >
+                <option value="Semua">Semua Waktu</option>
+                {allYears.map(yr => <option key={yr} value={yr}>{yr}</option>)}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-teal-800">Jenis Program</label>
+              <select 
+                className="w-full bg-white/50 border border-white/50 text-teal-900 text-sm rounded-lg focus:ring-teal-500 p-2 outline-none"
+                value={mapProgramFilter}
+                onChange={(e) => { setMapProgramFilter(e.target.value); setActiveMarker(null); }}
+              >
+                <option value="Semua">Semua Program</option>
+                {/* Memfilter dropdown agar hanya menampilkan program yang memiliki titik lokasi (Spasial) */}
+                {[...new Set(dataSpasial.map(d => d.Jenis_Program))].filter(Boolean).map(prog => (
+                  <option key={prog} value={prog}>{prog}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* PANEL INFO LOKASI (Kanan Bawah) */}
+          <aside className="absolute bottom-4 left-4 right-4 md:top-28 md:bottom-auto md:left-auto md:right-4 z-[1000] md:w-80 liquid-glass rounded-2xl flex flex-col overflow-hidden max-h-[50vh] md:max-h-[75vh] shadow-xl transition-all">
             {activeMarker ? (
               <>
                 <div className="liquid-glass-solid p-4 md:p-5 border-b border-white/30 relative">
                   <button onClick={() => setActiveMarker(null)} className="absolute top-2 right-3 text-teal-900 font-bold text-lg md:top-4 md:right-4 md:text-base">✕</button>
-                  <span className="bg-teal-500 text-white text-[10px] font-bold px-2 py-1 rounded-full">{activeMarker.Jenis_Program}</span>
+                  <span 
+                    className="text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-sm"
+                    style={{ backgroundColor: programColors[activeMarker.Jenis_Program] || '#94a3b8' }}
+                  >
+                    {activeMarker.Jenis_Program}
+                  </span>
                   <h2 className="text-lg md:text-xl font-bold text-teal-950 mt-2 pr-6">{activeMarker.Nama_Penerima}</h2>
                   <p className="text-xs md:text-sm text-teal-800">{activeMarker.Kecamatan}</p>
                 </div>
@@ -408,12 +468,15 @@ export default function App() {
                       <tr key={index} className="border-b border-teal-500/10 hover:bg-white/40 transition">
                         <td className="p-3 text-xs md:text-sm text-teal-800">{formatDate(item.tanggal)}</td>
                         <td className="p-3 text-xs md:text-sm font-medium text-teal-900">
-                          <span className={`px-2 py-1 rounded text-[10px] md:text-xs text-white ${item.kategori === 'Infrastruktur' ? 'bg-blue-500' : 'bg-green-500'}`}>
-                            {item.kategori}
+                          <span 
+                             className="px-2 py-1 rounded text-[10px] md:text-xs text-white shadow-sm"
+                             style={{ backgroundColor: programColors[item.program] || '#94a3b8' }}
+                          >
+                            {item.program}
                           </span>
                         </td>
                         <td className="p-3 text-xs md:text-sm text-teal-900">
-                          <strong>{item.program}</strong> <br/>
+                          <strong>{item.kategori}</strong> <br/>
                           <span className="text-[10px] md:text-xs text-teal-700">{item.wilayah}</span>
                         </td>
                         <td className="p-3 text-xs md:text-sm text-teal-800 text-center">{item.penerima}</td>

@@ -115,7 +115,7 @@ export default function App() {
       <div className="flex items-center gap-3 w-full md:w-auto">
         <div className="w-8 h-8 md:w-10 md:h-10 bg-teal-500 rounded-full flex items-center justify-center text-white font-bold text-xs md:text-base shadow-lg shadow-teal-500/50 flex-shrink-0">NH</div>
         <div>
-          <h1 className="text-lg md:text-xl font-bold text-teal-900 leading-tight">Layanan Sosial</h1>
+          <h1 className="text-lg md:text-xl font-bold text-teal-900 leading-tight">Report Program Layanan Sosial</h1>
           <p className="text-xs md:text-sm text-teal-700 hidden md:block">LAZNAS Nurul Hayat Malang</p>
         </div>
       </div>
@@ -150,7 +150,7 @@ export default function App() {
       {activeTab === 'dashboard' && (
         <div className="absolute inset-0 pt-32 md:pt-28 px-4 md:px-8 pb-8 overflow-y-auto z-10">
           <div className="max-w-5xl mx-auto space-y-4 md:space-y-6">
-            <h2 className="text-xl md:text-2xl font-bold text-teal-900 mb-2 md:mb-4">Ringkasan Eksekutif</h2>
+            <h2 className="text-xl md:text-2xl font-bold text-teal-900 mb-2 md:mb-4">Dashboar Layanan Sosial</h2>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
               <div className="liquid-glass-solid p-5 md:p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm">

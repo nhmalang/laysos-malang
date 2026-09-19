@@ -25,11 +25,11 @@ export default function App() {
   const [activeMarker, setActiveMarker] = useState(null);
   const [photoModal, setPhotoModal] = useState(null);
 
-  // Filter Tahun berjalan (otomatis menggunakan tahun dari sistem perangkat)
   const currentYear = new Date().getFullYear().toString();
   const [selectedYear, setSelectedYear] = useState(currentYear);
 
   const posisiMalang = [-8.1345, 112.5746];
+  const CHART_COLORS = ['#0f766e', '#0ea5e9', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#f43f5e', '#3b82f6'];
 
   useEffect(() => {
     const fetchData = async () => {
@@ -49,7 +49,6 @@ export default function App() {
     fetchData();
   }, []);
 
-  // --- HELPER FORMATTING & EKSTRAKSI ---
   const formatRupiah = (angka) => {
     const num = parseInt(String(angka).replace(/[^0-9]/g, ''));
     if (isNaN(num)) return angka;
@@ -62,7 +61,6 @@ export default function App() {
     return dateString;
   };
 
-  // Fungsi untuk menarik angka tahun dari berbagai format ("2026-09-15" atau "Agustus 2026")
   const getYear = (dateStr) => {
     if (!dateStr) return null;
     if (dateStr.includes('-')) return dateStr.split('-')[0];
@@ -94,7 +92,6 @@ export default function App() {
     ...dataReguler.map(d => getYear(d.Periode_Laporan))
   ])].filter(Boolean).sort((a, b) => b - a);
 
-  // Jika data tahun ini belum ada, fallback ke opsi "Semua"
   useEffect(() => {
     if (!loading && allYears.length > 0 && !allYears.includes(selectedYear)) {
        setSelectedYear('Semua');
@@ -104,10 +101,9 @@ export default function App() {
   const filteredSpasial = selectedYear === 'Semua' ? dataSpasial : dataSpasial.filter(d => getYear(d.Tanggal_Update) === selectedYear);
   const filteredReguler = selectedYear === 'Semua' ? dataReguler : dataReguler.filter(d => getYear(d.Periode_Laporan) === selectedYear);
 
-  // --- PERHITUNGAN DASHBOARD BERDASARKAN FILTER ---
+  // --- PERHITUNGAN KARTU METRIK ATAS ---
   const totalLokasi = filteredSpasial.length;
   
-  // Pisahkan penjumlahan penerima (ambil angka integer saja)
   const penerimaSpasial = filteredSpasial.reduce((acc, curr) => acc + (parseInt(String(curr.Penerima_Manfaat).replace(/[^0-9]/g, '')) || 0), 0);
   const penerimaReguler = filteredReguler.reduce((acc, curr) => acc + (parseInt(String(curr.Jumlah_Penerima).replace(/[^0-9]/g, '')) || 0), 0);
 
@@ -115,18 +111,39 @@ export default function App() {
   const danaSpasial = filteredSpasial.reduce((acc, curr) => acc + (parseInt(String(curr.penggunaan_dana || curr.Penggunaan_Dana || '0').replace(/[^0-9]/g, '')) || 0), 0);
   const totalDana = danaReguler + danaSpasial;
 
-  // Data untuk Grafik Lingkaran (Dikelompokkan berdasarkan Jenis Program)
-  const chartDataMap = {};
+  // --- LOGIKA BARU: PENGELOMPOKAN BERDASARKAN "JENIS PROGRAM" ---
+  const summaryMap = {};
+  
+  // Membaca data spasial (Misal: Sumur Bor, Bedah Rumah)
   filteredSpasial.forEach(item => {
     const prog = item.Jenis_Program || 'Lainnya';
-    chartDataMap[prog] = (chartDataMap[prog] || 0) + (parseInt(String(item.penggunaan_dana || item.Penggunaan_Dana || '0').replace(/[^0-9]/g, '')) || 0);
+    if (!summaryMap[prog]) summaryMap[prog] = { penerima: 0, dana: 0 };
+    summaryMap[prog].penerima += (parseInt(String(item.Penerima_Manfaat).replace(/[^0-9]/g, '')) || 0);
+    summaryMap[prog].dana += (parseInt(String(item.penggunaan_dana || item.Penggunaan_Dana || '0').replace(/[^0-9]/g, '')) || 0);
   });
+
+  // Membaca data reguler (Misal: Santunan Yatim, Guru Ngaji)
   filteredReguler.forEach(item => {
     const prog = item.Jenis_Program || 'Lainnya';
-    chartDataMap[prog] = (chartDataMap[prog] || 0) + (parseInt(String(item.Total_Nominal || '0').replace(/[^0-9]/g, '')) || 0);
+    if (!summaryMap[prog]) summaryMap[prog] = { penerima: 0, dana: 0 };
+    summaryMap[prog].penerima += (parseInt(String(item.Jumlah_Penerima).replace(/[^0-9]/g, '')) || 0);
+    summaryMap[prog].dana += (parseInt(String(item.Total_Nominal || '0').replace(/[^0-9]/g, '')) || 0);
   });
-  const pieData = Object.keys(chartDataMap).map(key => ({ name: key, value: chartDataMap[key] })).filter(d => d.value > 0);
-  const CHART_COLORS = ['#0f766e', '#0ea5e9', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981']; // Palet warna Tosca & cerah
+
+  // Mengubah Map menjadi Array dan menyuntikkan warna agar Tabel & Chart sinkron
+  const programSummary = Object.keys(summaryMap).map((key, index) => ({
+    name: key,
+    penerima: summaryMap[key].penerima,
+    dana: summaryMap[key].dana,
+    color: CHART_COLORS[index % CHART_COLORS.length]
+  }));
+
+  // Memisahkan data khusus untuk Pie Chart (Hanya yang ada penggunaan dananya)
+  const pieData = programSummary.filter(d => d.dana > 0).map(d => ({
+    name: d.name,
+    value: d.dana,
+    color: d.color
+  }));
 
   // --- PERSIAPAN DATA LAPORAN ---
   const gabunganLaporan = [
@@ -173,13 +190,12 @@ export default function App() {
       {renderNavbar()}
 
       {/* ========================================= */}
-      {/* DASHBOARD DENGAN FILTER & GRAFIK BARU     */}
+      {/* DASHBOARD                                 */}
       {/* ========================================= */}
       {activeTab === 'dashboard' && (
         <div className="absolute inset-0 pt-32 md:pt-28 px-4 md:px-8 pb-8 overflow-y-auto z-10">
           <div className="max-w-6xl mx-auto space-y-6">
             
-            {/* Header Dashboard & Filter Tahun */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <h2 className="text-xl md:text-2xl font-bold text-teal-900">Ringkasan Eksekutif</h2>
               <div className="flex items-center gap-3 bg-white/40 px-4 py-2 rounded-xl border border-white/50 shadow-sm backdrop-blur-md">
@@ -197,7 +213,6 @@ export default function App() {
               </div>
             </div>
             
-            {/* 3 Kartu Metrik Utama */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
               <div className="liquid-glass-solid p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm hover:-translate-y-1 transition duration-300">
                 <span className="text-4xl mb-3">📍</span>
@@ -224,45 +239,46 @@ export default function App() {
               </div>
             </div>
 
-            {/* Kartu Analisis (Tabel Ringkasan & Grafik) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-12">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-12">
               
-              {/* Kartu Tabel Kiri */}
+              {/* TABEL RINGKASAN BERDASARKAN JENIS PROGRAM */}
               <div className="liquid-glass-solid p-6 rounded-2xl shadow-sm">
-                 <h3 className="text-lg font-bold text-teal-900 mb-6 uppercase tracking-wide">Ringkasan Jenis Program</h3>
+                 <h3 className="text-lg font-bold text-teal-900 mb-6 uppercase tracking-wide">Ringkasan per Jenis Program</h3>
                  <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
                         <tr className="border-b-2 border-teal-500/20 text-teal-800 text-xs uppercase tracking-wider">
-                          <th className="pb-3 font-semibold">Kategori Program</th>
+                          <th className="pb-3 font-semibold">Jenis Program</th>
                           <th className="pb-3 font-semibold text-center">Penerima</th>
                           <th className="pb-3 font-semibold text-right">Dana Tersalurkan</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-teal-500/10">
-                        <tr className="hover:bg-teal-50/50 transition">
-                          <td className="py-4 text-sm font-medium text-teal-900 flex items-center gap-2">
-                             <div className="w-2 h-2 rounded-full bg-blue-500"></div> Program Spasial
-                          </td>
-                          <td className="py-4 text-sm text-teal-800 text-center">{penerimaSpasial} KK</td>
-                          <td className="py-4 text-sm font-semibold text-teal-800 text-right">{formatRupiah(danaSpasial)}</td>
-                        </tr>
-                        <tr className="hover:bg-teal-50/50 transition">
-                          <td className="py-4 text-sm font-medium text-teal-900 flex items-center gap-2">
-                             <div className="w-2 h-2 rounded-full bg-green-500"></div> Program Reguler
-                          </td>
-                          <td className="py-4 text-sm text-teal-800 text-center">{penerimaReguler} Jiwa</td>
-                          <td className="py-4 text-sm font-semibold text-teal-800 text-right">{formatRupiah(danaReguler)}</td>
-                        </tr>
+                        {loading ? (
+                          <tr><td colSpan="3" className="py-4 text-center text-sm text-teal-700">Memuat data...</td></tr>
+                        ) : programSummary.length > 0 ? (
+                          programSummary.map((prog, idx) => (
+                            <tr key={idx} className="hover:bg-teal-50/50 transition">
+                              <td className="py-4 text-sm font-medium text-teal-900 flex items-center gap-3">
+                                 <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: prog.color }}></div> 
+                                 {prog.name}
+                              </td>
+                              <td className="py-4 text-sm text-teal-800 text-center">{prog.penerima}</td>
+                              <td className="py-4 text-sm font-semibold text-teal-800 text-right">{formatRupiah(prog.dana)}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr><td colSpan="3" className="py-4 text-center text-sm text-teal-700">Tidak ada data.</td></tr>
+                        )}
                       </tbody>
                     </table>
                  </div>
               </div>
 
-              {/* Kartu Grafik Kanan */}
+              {/* GRAFIK LINGKARAN */}
               <div className="liquid-glass-solid p-6 rounded-2xl shadow-sm flex flex-col">
-                 <h3 className="text-lg font-bold text-teal-900 mb-2 uppercase tracking-wide">Penggunaan Dana Berdasarkan Program</h3>
-                 <div className="flex-1 min-h-[250px] w-full mt-4">
+                 <h3 className="text-lg font-bold text-teal-900 mb-2 uppercase tracking-wide">Alokasi Dana</h3>
+                 <div className="flex-1 min-h-[280px] w-full mt-4">
                     {pieData.length > 0 ? (
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
@@ -270,20 +286,23 @@ export default function App() {
                             data={pieData}
                             cx="50%"
                             cy="50%"
-                            innerRadius={60}
-                            outerRadius={90}
-                            paddingAngle={5}
+                            innerRadius={70}
+                            outerRadius={100}
+                            paddingAngle={4}
                             dataKey="value"
+                            stroke="rgba(255,255,255,0.5)"
+                            strokeWidth={2}
                           >
                             {pieData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                              <Cell key={`cell-${index}`} fill={entry.color} />
                             ))}
                           </Pie>
                           <Tooltip 
                              formatter={(value) => formatRupiah(value)}
-                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                             contentStyle={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(10px)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                             itemStyle={{ color: '#134e4a', fontWeight: 'bold' }}
                           />
-                          <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                          <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', color: '#115e59' }} />
                         </PieChart>
                       </ResponsiveContainer>
                     ) : (

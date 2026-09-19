@@ -22,6 +22,8 @@ export default function App() {
   
   const [activeTab, setActiveTab] = useState('dashboard'); 
   const [activeMarker, setActiveMarker] = useState(null);
+  
+  // State untuk popup foto sekarang menerima Array (kumpulan URL)
   const [photoModal, setPhotoModal] = useState(null);
 
   const posisiMalang = [-8.1345, 112.5746];
@@ -56,19 +58,23 @@ export default function App() {
     return dateString;
   };
 
-  // FIX: Menggunakan API Thumbnail Google Drive agar gambar bisa dirender di tag <img>
   const getDirectImage = (url) => {
     if (!url) return null;
     try {
       if (url.includes('drive.google.com/file/d/')) {
         const id = url.split('/d/')[1].split('/')[0];
-        // sz=w1000 berarti kita meminta gambar dengan lebar 1000px agar tidak pecah saat di-zoom
         return `https://drive.google.com/thumbnail?id=${id}&sz=w1000`;
       }
     } catch (e) {
       console.error("Error parsing URL", e);
     }
     return url;
+  };
+
+  // Helper untuk mengekstrak dan memfilter URL foto yang valid (tidak kosong)
+  const extractPhotos = (item) => {
+    return [item.URL_Foto_1, item.URL_Foto_2, item.URL_Foto_3]
+      .filter(url => url && url.trim() !== ''); // Hanya ambil kolom yang diisi link
   };
 
   const totalLokasi = dataSpasial.length;
@@ -97,7 +103,7 @@ export default function App() {
       wilayah: item.Kecamatan,
       penerima: item.Penerima_Manfaat,
       dana: item.penggunaan_dana || item.Penggunaan_Dana,
-      foto: item.URL_Foto_After || item.URL_Foto_Before || item.url_foto
+      fotos: extractPhotos(item) // Mengambil 3 foto
     })),
     ...dataReguler.map(item => ({
       kategori: 'Reguler',
@@ -106,7 +112,7 @@ export default function App() {
       wilayah: item.Wilayah_Kecamatan,
       penerima: `${item.Jumlah_Penerima} Penerima`,
       dana: item.Total_Nominal,
-      foto: item.url_foto || item.URL_Foto || item.Url_Foto
+      fotos: extractPhotos(item) // Mengambil 3 foto
     }))
   ];
 
@@ -115,7 +121,7 @@ export default function App() {
       <div className="flex items-center gap-3 w-full md:w-auto">
         <div className="w-8 h-8 md:w-10 md:h-10 bg-teal-500 rounded-full flex items-center justify-center text-white font-bold text-xs md:text-base shadow-lg shadow-teal-500/50 flex-shrink-0">NH</div>
         <div>
-          <h1 className="text-lg md:text-xl font-bold text-teal-900 leading-tight">Report Program Layanan Sosial</h1>
+          <h1 className="text-lg md:text-xl font-bold text-teal-900 leading-tight">Layanan Sosial</h1>
           <p className="text-xs md:text-sm text-teal-700 hidden md:block">LAZNAS Nurul Hayat Malang</p>
         </div>
       </div>
@@ -147,24 +153,22 @@ export default function App() {
       
       {renderNavbar()}
 
+      {/* --- DASHBOARD --- */}
       {activeTab === 'dashboard' && (
         <div className="absolute inset-0 pt-32 md:pt-28 px-4 md:px-8 pb-8 overflow-y-auto z-10">
           <div className="max-w-5xl mx-auto space-y-4 md:space-y-6">
-            <h2 className="text-xl md:text-2xl font-bold text-teal-900 mb-2 md:mb-4">Dashboar Layanan Sosial</h2>
-            
+            <h2 className="text-xl md:text-2xl font-bold text-teal-900 mb-2 md:mb-4">Ringkasan Eksekutif</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
               <div className="liquid-glass-solid p-5 md:p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm">
                 <span className="text-3xl md:text-4xl mb-2">📍</span>
                 <h3 className="text-teal-800 font-semibold mb-1 text-sm md:text-base">Total Lokasi Program</h3>
                 <p className="text-2xl md:text-3xl font-bold text-teal-600">{loading ? '...' : totalLokasi} <span className="text-xs md:text-sm font-normal">Titik</span></p>
               </div>
-              
               <div className="liquid-glass-solid p-5 md:p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm">
                 <span className="text-3xl md:text-4xl mb-2">👥</span>
                 <h3 className="text-teal-800 font-semibold mb-1 text-sm md:text-base">Penerima Manfaat</h3>
                 <p className="text-2xl md:text-3xl font-bold text-teal-600">{loading ? '...' : totalPenerima} <span className="text-xs md:text-sm font-normal">Jiwa</span></p>
               </div>
-
               <div className="liquid-glass-solid p-5 md:p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm sm:col-span-2 md:col-span-1">
                 <span className="text-3xl md:text-4xl mb-2">💰</span>
                 <h3 className="text-teal-800 font-semibold mb-1 text-sm md:text-base">Dana Tersalurkan</h3>
@@ -175,6 +179,7 @@ export default function App() {
         </div>
       )}
 
+      {/* --- PETA PUBLIK --- */}
       {activeTab === 'peta' && (
         <>
           <MapContainer center={posisiMalang} zoom={11} zoomControl={false} style={{ height: "100vh", width: "100vw", zIndex: 0 }}>
@@ -198,7 +203,8 @@ export default function App() {
             })}
           </MapContainer>
 
-          <aside className="absolute bottom-4 left-4 right-4 md:top-28 md:bottom-auto md:left-auto md:right-4 z-[1000] md:w-80 liquid-glass rounded-2xl flex flex-col overflow-hidden max-h-[50vh] md:max-h-[75vh] shadow-xl">
+          {/* Panel Kanan Peta */}
+          <aside className="absolute bottom-4 left-4 right-4 md:top-28 md:bottom-auto md:left-auto md:right-4 z-[1000] md:w-80 liquid-glass rounded-2xl flex flex-col overflow-hidden max-h-[60vh] md:max-h-[75vh] shadow-xl">
             {activeMarker ? (
               <>
                 <div className="liquid-glass-solid p-4 md:p-5 border-b border-white/30 relative">
@@ -209,14 +215,21 @@ export default function App() {
                 </div>
                 
                 <div className="flex-1 overflow-y-auto">
-                  {(activeMarker.URL_Foto_After || activeMarker.URL_Foto_Before || activeMarker.url_foto) && (
-                    <img 
-                      src={getDirectImage(activeMarker.URL_Foto_After || activeMarker.URL_Foto_Before || activeMarker.url_foto)} 
-                      alt="Dokumentasi Peta" 
-                      className="w-full h-32 md:h-40 object-cover border-b border-white/50 cursor-pointer"
-                      onClick={() => setPhotoModal(getDirectImage(activeMarker.URL_Foto_After || activeMarker.URL_Foto_Before || activeMarker.url_foto))}
-                    />
+                  {/* SLIDER FOTO: Jika ada lebih dari 1 foto, akan bisa digeser ke samping */}
+                  {extractPhotos(activeMarker).length > 0 && (
+                    <div className="flex overflow-x-auto gap-2 p-3 bg-teal-900/5 snap-x hide-scrollbar border-b border-white/50">
+                      {extractPhotos(activeMarker).map((fotoUrl, idx) => (
+                        <img 
+                          key={idx}
+                          src={getDirectImage(fotoUrl)} 
+                          alt={`Dokumentasi ${idx + 1}`} 
+                          className="w-3/4 md:w-4/5 h-32 md:h-36 object-cover rounded-lg cursor-pointer flex-shrink-0 snap-center shadow-sm"
+                          onClick={() => setPhotoModal(extractPhotos(activeMarker))} // Klik gambar buka semua di Modal
+                        />
+                      ))}
+                    </div>
                   )}
+                  
                   <div className="p-4 md:p-5 space-y-2">
                     <p className="text-xs md:text-sm bg-white/40 p-3 rounded-xl border border-white/50">{activeMarker.Spesifikasi_Teknis}</p>
                     <p className="text-xs text-teal-700">Penerima Manfaat: <b>{activeMarker.Penerima_Manfaat}</b></p>
@@ -234,6 +247,7 @@ export default function App() {
         </>
       )}
 
+      {/* --- LAPORAN GABUNGAN --- */}
       {activeTab === 'laporan' && (
         <div className="absolute inset-0 pt-32 md:pt-28 px-4 md:px-8 pb-8 overflow-y-auto z-10">
           <div className="max-w-6xl mx-auto liquid-glass-solid rounded-2xl p-4 md:p-6 shadow-sm">
@@ -270,12 +284,12 @@ export default function App() {
                         <td className="p-3 text-xs md:text-sm text-teal-800 text-center">{item.penerima}</td>
                         <td className="p-3 text-xs md:text-sm text-teal-800 text-right font-medium">{formatRupiah(item.dana)}</td>
                         <td className="p-3 text-center">
-                          {item.foto ? (
+                          {item.fotos.length > 0 ? (
                             <button 
-                              onClick={() => setPhotoModal(getDirectImage(item.foto))}
+                              onClick={() => setPhotoModal(item.fotos)} // Mengirim array foto ke modal
                               className="inline-block px-3 py-1.5 bg-teal-500 hover:bg-teal-600 shadow-md shadow-teal-500/30 text-white text-[10px] md:text-xs rounded-lg transition"
                             >
-                              Lihat Foto
+                              Lihat Foto ({item.fotos.length})
                             </button>
                           ) : (
                             <span className="text-xs text-slate-400">-</span>
@@ -291,25 +305,34 @@ export default function App() {
         </div>
       )}
 
-      {/* POPUP (MODAL) FULLSCREEN FOTO */}
-      {photoModal && (
+      {/* --- POPUP (MODAL) MULTIPLE FOTO --- */}
+      {photoModal && photoModal.length > 0 && (
         <div 
-          className="fixed inset-0 z-[9999] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity"
+          className="fixed inset-0 z-[9999] bg-slate-900/90 backdrop-blur-sm flex flex-col items-center justify-center p-4 transition-opacity"
           onClick={() => setPhotoModal(null)}
         >
-          <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center">
-            <button 
-              className="absolute -top-10 right-0 text-white hover:text-teal-300 text-3xl font-bold transition"
-              onClick={() => setPhotoModal(null)}
-            >
-              ✕
-            </button>
-            <img 
-              src={photoModal} 
-              className="max-w-full max-h-[85vh] rounded-xl object-contain shadow-2xl border-4 border-white/20" 
-              alt="Dokumentasi Detail" 
-              onClick={(e) => e.stopPropagation()} 
-            />
+          <button 
+            className="absolute top-4 right-4 md:top-8 md:right-8 text-white hover:text-teal-300 text-4xl font-bold transition z-50 drop-shadow-md"
+            onClick={() => setPhotoModal(null)}
+          >
+            ✕
+          </button>
+          
+          {/* Scroll Area untuk Foto */}
+          <div 
+            className="w-full max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col gap-6 items-center hide-scrollbar py-8" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            {photoModal.map((fotoUrl, idx) => (
+              <div key={idx} className="relative w-full flex flex-col items-center">
+                <span className="text-white/50 text-xs mb-2">Foto {idx + 1} dari {photoModal.length}</span>
+                <img 
+                  src={getDirectImage(fotoUrl)} 
+                  className="max-w-full rounded-xl object-contain shadow-2xl border-2 border-white/20" 
+                  alt={`Dokumentasi Detail ${idx + 1}`} 
+                />
+              </div>
+            ))}
           </div>
         </div>
       )}

@@ -202,7 +202,7 @@ export default function App() {
       <div className="flex items-center gap-3 w-full md:w-auto">
         <div className="w-8 h-8 md:w-10 md:h-10 bg-teal-500 rounded-full flex items-center justify-center text-white font-bold text-xs md:text-base shadow-lg shadow-teal-500/50 flex-shrink-0">NH</div>
         <div>
-          <h1 className="text-lg md:text-xl font-bold text-teal-900 leading-tight">Layanan Sosial</h1>
+          <h1 className="text-lg md:text-xl font-bold text-teal-900 leading-tight">Program Layanan Sosial</h1>
           <p className="text-xs md:text-sm text-teal-700 hidden md:block">LAZNAS Nurul Hayat Malang</p>
         </div>
       </div>
@@ -225,7 +225,7 @@ export default function App() {
         <div className="absolute inset-0 pt-32 md:pt-28 px-4 md:px-8 pb-8 overflow-y-auto z-10">
           <div className="max-w-6xl mx-auto space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <h2 className="text-xl md:text-2xl font-bold text-teal-900">Ringkasan Eksekutif</h2>
+              <h2 className="text-xl md:text-2xl font-bold text-teal-900">Dashboard Program Laysos</h2>
               <div className="flex items-center gap-3 bg-white/40 px-4 py-2 rounded-xl border border-white/50 shadow-sm backdrop-blur-md">
                 <span className="text-sm font-semibold text-teal-800">Filter Tahun:</span>
                 <select 
@@ -265,7 +265,7 @@ export default function App() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-12">
               <div className="liquid-glass-solid p-6 rounded-2xl shadow-sm">
-                 <h3 className="text-lg font-bold text-teal-900 mb-6 uppercase tracking-wide">Ringkasan per Jenis Program</h3>
+                 <h3 className="text-lg font-bold text-teal-900 mb-6 uppercase tracking-wide">Ringkasan Program</h3>
                  <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
@@ -297,7 +297,7 @@ export default function App() {
                  </div>
               </div>
               <div className="liquid-glass-solid p-6 rounded-2xl shadow-sm flex flex-col">
-                 <h3 className="text-lg font-bold text-teal-900 mb-2 uppercase tracking-wide">Alokasi Dana</h3>
+                 <h3 className="text-lg font-bold text-teal-900 mb-2 uppercase tracking-wide">Penggunaan Dana</h3>
                  <div className="flex-1 min-h-[280px] w-full mt-4">
                     {pieData.length > 0 ? (
                       <ResponsiveContainer width="100%" height="100%">
@@ -410,7 +410,7 @@ export default function App() {
             {/* Header Laporan, Filter, & Tombol Share Global */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-6">
               <div>
-                <h2 className="text-xl md:text-2xl font-bold text-teal-900 mb-3">Laporan Detail Penyaluran</h2>
+                <h2 className="text-xl md:text-2xl font-bold text-teal-900 mb-3">Laporan Detail Penyaluran Laysos</h2>
                 <div className="flex flex-wrap items-center gap-3">
                   <select 
                     className="bg-white/50 border border-white/50 text-teal-900 font-semibold text-sm rounded-lg p-2 outline-none focus:ring-1 focus:ring-teal-500"

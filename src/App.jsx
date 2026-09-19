@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const defaultIcon = new L.Icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -22,9 +23,11 @@ export default function App() {
   
   const [activeTab, setActiveTab] = useState('dashboard'); 
   const [activeMarker, setActiveMarker] = useState(null);
-  
-  // State untuk popup foto sekarang menerima Array (kumpulan URL)
   const [photoModal, setPhotoModal] = useState(null);
+
+  // Filter Tahun berjalan (otomatis menggunakan tahun dari sistem perangkat)
+  const currentYear = new Date().getFullYear().toString();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
 
   const posisiMalang = [-8.1345, 112.5746];
 
@@ -46,6 +49,7 @@ export default function App() {
     fetchData();
   }, []);
 
+  // --- HELPER FORMATTING & EKSTRAKSI ---
   const formatRupiah = (angka) => {
     const num = parseInt(String(angka).replace(/[^0-9]/g, ''));
     if (isNaN(num)) return angka;
@@ -56,6 +60,14 @@ export default function App() {
     if (!dateString) return '-';
     if (dateString.includes('T')) return dateString.split('T')[0]; 
     return dateString;
+  };
+
+  // Fungsi untuk menarik angka tahun dari berbagai format ("2026-09-15" atau "Agustus 2026")
+  const getYear = (dateStr) => {
+    if (!dateStr) return null;
+    if (dateStr.includes('-')) return dateStr.split('-')[0];
+    if (dateStr.includes(' ')) return dateStr.split(' ')[1];
+    return dateStr.substring(0,4);
   };
 
   const getDirectImage = (url) => {
@@ -71,30 +83,52 @@ export default function App() {
     return url;
   };
 
-  // Helper untuk mengekstrak dan memfilter URL foto yang valid (tidak kosong)
   const extractPhotos = (item) => {
-    return [item.URL_Foto_1, item.URL_Foto_2, item.URL_Foto_3]
-      .filter(url => url && url.trim() !== ''); // Hanya ambil kolom yang diisi link
+    return [item.URL_Foto_1, item.URL_Foto_2, item.URL_Foto_3, item.URL_Foto_After, item.URL_Foto_Before, item.url_foto]
+      .filter(url => url && url.trim() !== '');
   };
 
-  const totalLokasi = dataSpasial.length;
-  const penerimaSpasial = dataSpasial.reduce((acc, curr) => acc + (parseInt(curr.Penerima_Manfaat) || 0), 0);
-  const penerimaReguler = dataReguler.reduce((acc, curr) => acc + (parseInt(curr.Jumlah_Penerima) || 0), 0);
-  const totalPenerima = penerimaSpasial + penerimaReguler;
+  // --- LOGIKA FILTER TAHUN ---
+  const allYears = [...new Set([
+    ...dataSpasial.map(d => getYear(d.Tanggal_Update)),
+    ...dataReguler.map(d => getYear(d.Periode_Laporan))
+  ])].filter(Boolean).sort((a, b) => b - a);
 
-  const danaReguler = dataReguler.reduce((acc, curr) => {
-    const num = String(curr.Total_Nominal || '0').replace(/[^0-9]/g, '');
-    return acc + (parseInt(num) || 0);
-  }, 0);
+  // Jika data tahun ini belum ada, fallback ke opsi "Semua"
+  useEffect(() => {
+    if (!loading && allYears.length > 0 && !allYears.includes(selectedYear)) {
+       setSelectedYear('Semua');
+    }
+  }, [loading, allYears, selectedYear]);
+
+  const filteredSpasial = selectedYear === 'Semua' ? dataSpasial : dataSpasial.filter(d => getYear(d.Tanggal_Update) === selectedYear);
+  const filteredReguler = selectedYear === 'Semua' ? dataReguler : dataReguler.filter(d => getYear(d.Periode_Laporan) === selectedYear);
+
+  // --- PERHITUNGAN DASHBOARD BERDASARKAN FILTER ---
+  const totalLokasi = filteredSpasial.length;
   
-  const danaSpasial = dataSpasial.reduce((acc, curr) => {
-    const dana = curr.penggunaan_dana || curr.Penggunaan_Dana || curr.penggunaan_Dana || '0';
-    const num = String(dana).replace(/[^0-9]/g, '');
-    return acc + (parseInt(num) || 0);
-  }, 0);
+  // Pisahkan penjumlahan penerima (ambil angka integer saja)
+  const penerimaSpasial = filteredSpasial.reduce((acc, curr) => acc + (parseInt(String(curr.Penerima_Manfaat).replace(/[^0-9]/g, '')) || 0), 0);
+  const penerimaReguler = filteredReguler.reduce((acc, curr) => acc + (parseInt(String(curr.Jumlah_Penerima).replace(/[^0-9]/g, '')) || 0), 0);
 
+  const danaReguler = filteredReguler.reduce((acc, curr) => acc + (parseInt(String(curr.Total_Nominal || '0').replace(/[^0-9]/g, '')) || 0), 0);
+  const danaSpasial = filteredSpasial.reduce((acc, curr) => acc + (parseInt(String(curr.penggunaan_dana || curr.Penggunaan_Dana || '0').replace(/[^0-9]/g, '')) || 0), 0);
   const totalDana = danaReguler + danaSpasial;
 
+  // Data untuk Grafik Lingkaran (Dikelompokkan berdasarkan Jenis Program)
+  const chartDataMap = {};
+  filteredSpasial.forEach(item => {
+    const prog = item.Jenis_Program || 'Lainnya';
+    chartDataMap[prog] = (chartDataMap[prog] || 0) + (parseInt(String(item.penggunaan_dana || item.Penggunaan_Dana || '0').replace(/[^0-9]/g, '')) || 0);
+  });
+  filteredReguler.forEach(item => {
+    const prog = item.Jenis_Program || 'Lainnya';
+    chartDataMap[prog] = (chartDataMap[prog] || 0) + (parseInt(String(item.Total_Nominal || '0').replace(/[^0-9]/g, '')) || 0);
+  });
+  const pieData = Object.keys(chartDataMap).map(key => ({ name: key, value: chartDataMap[key] })).filter(d => d.value > 0);
+  const CHART_COLORS = ['#0f766e', '#0ea5e9', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981']; // Palet warna Tosca & cerah
+
+  // --- PERSIAPAN DATA LAPORAN ---
   const gabunganLaporan = [
     ...dataSpasial.map(item => ({
       kategori: 'Infrastruktur',
@@ -103,7 +137,7 @@ export default function App() {
       wilayah: item.Kecamatan,
       penerima: item.Penerima_Manfaat,
       dana: item.penggunaan_dana || item.Penggunaan_Dana,
-      fotos: extractPhotos(item) // Mengambil 3 foto
+      fotos: extractPhotos(item)
     })),
     ...dataReguler.map(item => ({
       kategori: 'Reguler',
@@ -112,9 +146,10 @@ export default function App() {
       wilayah: item.Wilayah_Kecamatan,
       penerima: `${item.Jumlah_Penerima} Penerima`,
       dana: item.Total_Nominal,
-      fotos: extractPhotos(item) // Mengambil 3 foto
+      fotos: extractPhotos(item)
     }))
-  ];
+  ].filter(item => selectedYear === 'Semua' ? true : getYear(item.tanggal) === selectedYear);
+
 
   const renderNavbar = () => (
     <nav className="absolute top-2 left-2 right-2 md:top-4 md:left-4 md:right-4 z-[1000] liquid-glass rounded-xl md:rounded-2xl flex flex-col md:flex-row items-center justify-between px-4 py-3 md:px-6 md:py-4 shadow-sm gap-3 md:gap-0">
@@ -126,55 +161,138 @@ export default function App() {
         </div>
       </div>
       <div className="flex gap-2 font-medium text-xs md:text-sm w-full md:w-auto overflow-x-auto pb-1 md:pb-0 hide-scrollbar">
-        <button 
-          onClick={() => setActiveTab('dashboard')} 
-          className={`px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-teal-500 text-white shadow-md' : 'text-teal-800 hover:bg-white/50 border border-transparent'}`}
-        >
-          Dashboard
-        </button>
-        <button 
-          onClick={() => setActiveTab('peta')} 
-          className={`px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition whitespace-nowrap ${activeTab === 'peta' ? 'bg-teal-500 text-white shadow-md' : 'text-teal-800 hover:bg-white/50 border border-transparent'}`}
-        >
-          Peta Publik
-        </button>
-        <button 
-          onClick={() => setActiveTab('laporan')} 
-          className={`px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition whitespace-nowrap ${activeTab === 'laporan' ? 'bg-teal-500 text-white shadow-md' : 'text-teal-800 hover:bg-white/50 border border-transparent'}`}
-        >
-          Laporan
-        </button>
+        <button onClick={() => setActiveTab('dashboard')} className={`px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-teal-500 text-white shadow-md' : 'text-teal-800 hover:bg-white/50 border border-transparent'}`}>Dashboard</button>
+        <button onClick={() => setActiveTab('peta')} className={`px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition whitespace-nowrap ${activeTab === 'peta' ? 'bg-teal-500 text-white shadow-md' : 'text-teal-800 hover:bg-white/50 border border-transparent'}`}>Peta Publik</button>
+        <button onClick={() => setActiveTab('laporan')} className={`px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition whitespace-nowrap ${activeTab === 'laporan' ? 'bg-teal-500 text-white shadow-md' : 'text-teal-800 hover:bg-white/50 border border-transparent'}`}>Laporan</button>
       </div>
     </nav>
   );
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-slate-100 font-sans">
-      
       {renderNavbar()}
 
-      {/* --- DASHBOARD --- */}
+      {/* ========================================= */}
+      {/* DASHBOARD DENGAN FILTER & GRAFIK BARU     */}
+      {/* ========================================= */}
       {activeTab === 'dashboard' && (
         <div className="absolute inset-0 pt-32 md:pt-28 px-4 md:px-8 pb-8 overflow-y-auto z-10">
-          <div className="max-w-5xl mx-auto space-y-4 md:space-y-6">
-            <h2 className="text-xl md:text-2xl font-bold text-teal-900 mb-2 md:mb-4">Ringkasan Eksekutif</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
-              <div className="liquid-glass-solid p-5 md:p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm">
-                <span className="text-3xl md:text-4xl mb-2">📍</span>
-                <h3 className="text-teal-800 font-semibold mb-1 text-sm md:text-base">Total Lokasi Program</h3>
-                <p className="text-2xl md:text-3xl font-bold text-teal-600">{loading ? '...' : totalLokasi} <span className="text-xs md:text-sm font-normal">Titik</span></p>
-              </div>
-              <div className="liquid-glass-solid p-5 md:p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm">
-                <span className="text-3xl md:text-4xl mb-2">👥</span>
-                <h3 className="text-teal-800 font-semibold mb-1 text-sm md:text-base">Penerima Manfaat</h3>
-                <p className="text-2xl md:text-3xl font-bold text-teal-600">{loading ? '...' : totalPenerima} <span className="text-xs md:text-sm font-normal">Jiwa</span></p>
-              </div>
-              <div className="liquid-glass-solid p-5 md:p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm sm:col-span-2 md:col-span-1">
-                <span className="text-3xl md:text-4xl mb-2">💰</span>
-                <h3 className="text-teal-800 font-semibold mb-1 text-sm md:text-base">Dana Tersalurkan</h3>
-                <p className="text-xl md:text-2xl font-bold text-teal-600">{loading ? '...' : formatRupiah(totalDana)}</p>
+          <div className="max-w-6xl mx-auto space-y-6">
+            
+            {/* Header Dashboard & Filter Tahun */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <h2 className="text-xl md:text-2xl font-bold text-teal-900">Ringkasan Eksekutif</h2>
+              <div className="flex items-center gap-3 bg-white/40 px-4 py-2 rounded-xl border border-white/50 shadow-sm backdrop-blur-md">
+                <span className="text-sm font-semibold text-teal-800">Filter Tahun:</span>
+                <select 
+                  className="bg-transparent text-teal-900 font-bold outline-none cursor-pointer"
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                >
+                  <option value="Semua">Semua Waktu</option>
+                  {allYears.map(yr => (
+                    <option key={yr} value={yr}>{yr}</option>
+                  ))}
+                </select>
               </div>
             </div>
+            
+            {/* 3 Kartu Metrik Utama */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+              <div className="liquid-glass-solid p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm hover:-translate-y-1 transition duration-300">
+                <span className="text-4xl mb-3">📍</span>
+                <h3 className="text-teal-800 font-semibold mb-2 text-sm uppercase tracking-wider">Total Lokasi Program</h3>
+                <p className="text-3xl font-bold text-teal-600">{loading ? '...' : totalLokasi} <span className="text-sm font-normal text-teal-800">Titik</span></p>
+              </div>
+              
+              <div className="liquid-glass-solid p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm hover:-translate-y-1 transition duration-300">
+                <span className="text-4xl mb-3">👥</span>
+                <h3 className="text-teal-800 font-semibold mb-2 text-sm uppercase tracking-wider">Penerima Manfaat</h3>
+                {loading ? <p>...</p> : (
+                  <div className="flex items-end gap-3 text-teal-600">
+                    <p className="text-3xl font-bold">{penerimaSpasial} <span className="text-sm font-normal text-teal-800">KK</span></p>
+                    <span className="text-xl text-teal-300 mb-1">&amp;</span>
+                    <p className="text-3xl font-bold">{penerimaReguler} <span className="text-sm font-normal text-teal-800">Jiwa</span></p>
+                  </div>
+                )}
+              </div>
+
+              <div className="liquid-glass-solid p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm sm:col-span-2 md:col-span-1 hover:-translate-y-1 transition duration-300">
+                <span className="text-4xl mb-3">💰</span>
+                <h3 className="text-teal-800 font-semibold mb-2 text-sm uppercase tracking-wider">Dana Tersalurkan</h3>
+                <p className="text-2xl font-bold text-teal-600">{loading ? '...' : formatRupiah(totalDana)}</p>
+              </div>
+            </div>
+
+            {/* Kartu Analisis (Tabel Ringkasan & Grafik) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-12">
+              
+              {/* Kartu Tabel Kiri */}
+              <div className="liquid-glass-solid p-6 rounded-2xl shadow-sm">
+                 <h3 className="text-lg font-bold text-teal-900 mb-6 uppercase tracking-wide">Ringkasan Jenis Program</h3>
+                 <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="border-b-2 border-teal-500/20 text-teal-800 text-xs uppercase tracking-wider">
+                          <th className="pb-3 font-semibold">Kategori Program</th>
+                          <th className="pb-3 font-semibold text-center">Penerima</th>
+                          <th className="pb-3 font-semibold text-right">Dana Tersalurkan</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-teal-500/10">
+                        <tr className="hover:bg-teal-50/50 transition">
+                          <td className="py-4 text-sm font-medium text-teal-900 flex items-center gap-2">
+                             <div className="w-2 h-2 rounded-full bg-blue-500"></div> Program Spasial
+                          </td>
+                          <td className="py-4 text-sm text-teal-800 text-center">{penerimaSpasial} KK</td>
+                          <td className="py-4 text-sm font-semibold text-teal-800 text-right">{formatRupiah(danaSpasial)}</td>
+                        </tr>
+                        <tr className="hover:bg-teal-50/50 transition">
+                          <td className="py-4 text-sm font-medium text-teal-900 flex items-center gap-2">
+                             <div className="w-2 h-2 rounded-full bg-green-500"></div> Program Reguler
+                          </td>
+                          <td className="py-4 text-sm text-teal-800 text-center">{penerimaReguler} Jiwa</td>
+                          <td className="py-4 text-sm font-semibold text-teal-800 text-right">{formatRupiah(danaReguler)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                 </div>
+              </div>
+
+              {/* Kartu Grafik Kanan */}
+              <div className="liquid-glass-solid p-6 rounded-2xl shadow-sm flex flex-col">
+                 <h3 className="text-lg font-bold text-teal-900 mb-2 uppercase tracking-wide">Penggunaan Dana Berdasarkan Program</h3>
+                 <div className="flex-1 min-h-[250px] w-full mt-4">
+                    {pieData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={pieData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={90}
+                            paddingAngle={5}
+                            dataKey="value"
+                          >
+                            {pieData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                             formatter={(value) => formatRupiah(value)}
+                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                          />
+                          <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-teal-700/50 text-sm">Tidak ada data untuk tahun ini</div>
+                    )}
+                 </div>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
@@ -185,7 +303,7 @@ export default function App() {
           <MapContainer center={posisiMalang} zoom={11} zoomControl={false} style={{ height: "100vh", width: "100vw", zIndex: 0 }}>
             <TileLayer attribution='&copy; OSM' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             
-            {!loading && dataSpasial.map((item, index) => {
+            {!loading && filteredSpasial.map((item, index) => {
               const lat = parseFloat(String(item.Latitude).replace(',', '.'));
               const lng = parseFloat(String(item.Longitude).replace(',', '.'));
               if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
@@ -203,7 +321,6 @@ export default function App() {
             })}
           </MapContainer>
 
-          {/* Panel Kanan Peta */}
           <aside className="absolute bottom-4 left-4 right-4 md:top-28 md:bottom-auto md:left-auto md:right-4 z-[1000] md:w-80 liquid-glass rounded-2xl flex flex-col overflow-hidden max-h-[60vh] md:max-h-[75vh] shadow-xl">
             {activeMarker ? (
               <>
@@ -215,7 +332,6 @@ export default function App() {
                 </div>
                 
                 <div className="flex-1 overflow-y-auto">
-                  {/* SLIDER FOTO: Jika ada lebih dari 1 foto, akan bisa digeser ke samping */}
                   {extractPhotos(activeMarker).length > 0 && (
                     <div className="flex overflow-x-auto gap-2 p-3 bg-teal-900/5 snap-x hide-scrollbar border-b border-white/50">
                       {extractPhotos(activeMarker).map((fotoUrl, idx) => (
@@ -224,7 +340,7 @@ export default function App() {
                           src={getDirectImage(fotoUrl)} 
                           alt={`Dokumentasi ${idx + 1}`} 
                           className="w-3/4 md:w-4/5 h-32 md:h-36 object-cover rounded-lg cursor-pointer flex-shrink-0 snap-center shadow-sm"
-                          onClick={() => setPhotoModal(extractPhotos(activeMarker))} // Klik gambar buka semua di Modal
+                          onClick={() => setPhotoModal(extractPhotos(activeMarker))}
                         />
                       ))}
                     </div>
@@ -286,7 +402,7 @@ export default function App() {
                         <td className="p-3 text-center">
                           {item.fotos.length > 0 ? (
                             <button 
-                              onClick={() => setPhotoModal(item.fotos)} // Mengirim array foto ke modal
+                              onClick={() => setPhotoModal(item.fotos)} 
                               className="inline-block px-3 py-1.5 bg-teal-500 hover:bg-teal-600 shadow-md shadow-teal-500/30 text-white text-[10px] md:text-xs rounded-lg transition"
                             >
                               Lihat Foto ({item.fotos.length})
@@ -318,7 +434,6 @@ export default function App() {
             ✕
           </button>
           
-          {/* Scroll Area untuk Foto */}
           <div 
             className="w-full max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col gap-6 items-center hide-scrollbar py-8" 
             onClick={(e) => e.stopPropagation()}

@@ -119,8 +119,12 @@ export default function App() {
   const filteredReguler = selectedYear === 'Semua' ? dataReguler : dataReguler.filter(d => getYear(d.Periode_Laporan) === selectedYear);
 
   const totalLokasi = filteredSpasial.length;
-  const penerimaSpasial = filteredSpasial.reduce((acc, curr) => acc + (parseInt(String(curr.Penerima_Manfaat).replace(/[^0-9]/g, '')) || 0), 0);
+  
+  // PERHITUNGAN BARU: Spasial ambil dari Jumlah_Jiwa, Reguler ambil dari Jumlah_Penerima
+  const penerimaSpasial = filteredSpasial.reduce((acc, curr) => acc + (parseInt(String(curr.Jumlah_Jiwa).replace(/[^0-9]/g, '')) || 0), 0);
   const penerimaReguler = filteredReguler.reduce((acc, curr) => acc + (parseInt(String(curr.Jumlah_Penerima).replace(/[^0-9]/g, '')) || 0), 0);
+  const totalJiwaPenerima = penerimaSpasial + penerimaReguler;
+
   const danaReguler = filteredReguler.reduce((acc, curr) => acc + (parseInt(String(curr.Total_Nominal || '0').replace(/[^0-9]/g, '')) || 0), 0);
   const danaSpasial = filteredSpasial.reduce((acc, curr) => acc + (parseInt(String(curr.penggunaan_dana || curr.Penggunaan_Dana || '0').replace(/[^0-9]/g, '')) || 0), 0);
   const totalDana = danaReguler + danaSpasial;
@@ -129,7 +133,8 @@ export default function App() {
   filteredSpasial.forEach(item => {
     const prog = item.Jenis_Program || 'Lainnya';
     if (!summaryMap[prog]) summaryMap[prog] = { penerima: 0, dana: 0 };
-    summaryMap[prog].penerima += (parseInt(String(item.Penerima_Manfaat).replace(/[^0-9]/g, '')) || 0);
+    // Tabel rincian bawah juga menggunakan logika Jumlah_Jiwa
+    summaryMap[prog].penerima += (parseInt(String(item.Jumlah_Jiwa).replace(/[^0-9]/g, '')) || 0);
     summaryMap[prog].dana += (parseInt(String(item.penggunaan_dana || item.Penggunaan_Dana || '0').replace(/[^0-9]/g, '')) || 0);
   });
   filteredReguler.forEach(item => {
@@ -157,9 +162,9 @@ export default function App() {
       kategori: 'Infrastruktur',
       tanggal: item.Tanggal_Update,
       program: item.Jenis_Program,
-      namaPenerima: item.Nama_Penerima || item.nama_penerima || '-', // Membaca kolom Nama_Penerima
+      namaPenerima: item.Nama_Penerima || item.nama_penerima || '-', 
       wilayah: item.Kecamatan,
-      penerima: item.Penerima_Manfaat,
+      penerima: `${item.Jumlah_Jiwa} Jiwa`, // Update Laporan agar pakai Jumlah_Jiwa
       dana: item.penggunaan_dana || item.Penggunaan_Dana,
       fotos: extractPhotos(item)
     })),
@@ -167,9 +172,9 @@ export default function App() {
       kategori: 'Reguler',
       tanggal: item.Periode_Laporan,
       program: item.Jenis_Program,
-      namaPenerima: item.Nama_Penerima || item.nama_penerima || item.Keterangan_Tambahan || item.Jenis_Program, // Membaca kolom Nama_Penerima
+      namaPenerima: item.Nama_Penerima || item.nama_penerima || item.Keterangan_Tambahan || item.Jenis_Program,
       wilayah: item.Wilayah_Kecamatan,
-      penerima: `${item.Jumlah_Penerima} Penerima`,
+      penerima: `${item.Jumlah_Penerima} Jiwa`, // Update string biar seragam
       dana: item.Total_Nominal,
       fotos: extractPhotos(item)
     }))
@@ -245,17 +250,16 @@ export default function App() {
                 <h3 className="text-teal-800 font-semibold mb-2 text-sm uppercase tracking-wider">Total Lokasi Program</h3>
                 <p className="text-3xl font-bold text-teal-600">{loading ? '...' : totalLokasi} <span className="text-sm font-normal text-teal-800">Titik</span></p>
               </div>
+              
+              {/* TAMPILAN KARTU PENERIMA MANFAAT YANG BARU (SATU ANGKA) */}
               <div className="liquid-glass-solid p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm hover:-translate-y-1 transition duration-300">
                 <span className="text-4xl mb-3">👥</span>
                 <h3 className="text-teal-800 font-semibold mb-2 text-sm uppercase tracking-wider">Penerima Manfaat</h3>
                 {loading ? <p>...</p> : (
-                  <div className="flex items-end gap-3 text-teal-600">
-                    <p className="text-3xl font-bold">{penerimaSpasial} <span className="text-sm font-normal text-teal-800">KK</span></p>
-                    <span className="text-xl text-teal-300 mb-1">&amp;</span>
-                    <p className="text-3xl font-bold">{penerimaReguler} <span className="text-sm font-normal text-teal-800">Jiwa</span></p>
-                  </div>
+                  <p className="text-3xl font-bold text-teal-600">{totalJiwaPenerima} <span className="text-sm font-normal text-teal-800">Jiwa</span></p>
                 )}
               </div>
+              
               <div className="liquid-glass-solid p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm sm:col-span-2 md:col-span-1 hover:-translate-y-1 transition duration-300">
                 <span className="text-4xl mb-3">💰</span>
                 <h3 className="text-teal-800 font-semibold mb-2 text-sm uppercase tracking-wider">Dana Tersalurkan</h3>
@@ -271,7 +275,7 @@ export default function App() {
                       <thead>
                         <tr className="border-b-2 border-teal-500/20 text-teal-800 text-xs uppercase tracking-wider">
                           <th className="pb-3 font-semibold">Jenis Program</th>
-                          <th className="pb-3 font-semibold text-center">Penerima</th>
+                          <th className="pb-3 font-semibold text-center">Penerima (Jiwa)</th>
                           <th className="pb-3 font-semibold text-right">Dana Tersalurkan</th>
                         </tr>
                       </thead>
@@ -385,7 +389,7 @@ export default function App() {
                   )}
                   <div className="p-4 md:p-5 space-y-2">
                     <p className="text-xs md:text-sm bg-white/40 p-3 rounded-xl border border-white/50">{activeMarker.Spesifikasi_Teknis}</p>
-                    <p className="text-xs text-teal-700">Penerima Manfaat: <b>{activeMarker.Penerima_Manfaat}</b></p>
+                    <p className="text-xs text-teal-700">Penerima Manfaat: <b>{activeMarker.Jumlah_Jiwa} Jiwa</b></p>
                     <p className="text-xs text-teal-700">Penggunaan Dana: <b>{formatRupiah(activeMarker.penggunaan_dana || activeMarker.Penggunaan_Dana || 0)}</b></p>
                     <p className="text-xs text-teal-700">Progres: <b>{activeMarker.Progres_Persen}%</b></p>
                   </div>
@@ -446,14 +450,11 @@ export default function App() {
                   <tr className="bg-teal-500/10 text-teal-900 border-b border-teal-500/20">
                     <th className="p-3 text-xs md:text-sm font-semibold">Tgl / Periode</th>
                     <th className="p-3 text-xs md:text-sm font-semibold">Kategori</th>
-                    
-                    {/* 1. KEPALA KOLOM DIUBAH DI SINI */}
-                    <th className="p-3 text-xs md:text-sm font-semibold">Penerima & Wilayah</th>
-                    
-                    <th className="p-3 text-xs md:text-sm font-semibold text-center">Penerima Manfaat</th>
+                    <th className="p-3 text-xs md:text-sm font-semibold">Nama Penerima & Wilayah</th>
+                    <th className="p-3 text-xs md:text-sm font-semibold text-center">Penerima (Jiwa)</th>
                     <th className="p-3 text-xs md:text-sm font-semibold text-right">Nominal Dana</th>
                     <th className="p-3 text-xs md:text-sm font-semibold text-center">Dokumentasi</th>
-                    <th className="p-3 text-xs md:text-sm font-semibold text-center">Bagikan</th>
+                    <th className="p-3 text-xs md:text-sm font-semibold text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -473,13 +474,10 @@ export default function App() {
                             {item.program}
                           </span>
                         </td>
-                        
-                        {/* 2. ISI KOLOM DIPANGGIL DARI properti "namaPenerima" */}
                         <td className="p-3 text-xs md:text-sm text-teal-900">
                           <strong>{item.namaPenerima}</strong> <br/>
                           <span className="text-[10px] md:text-xs text-teal-700">{item.wilayah}</span>
                         </td>
-                        
                         <td className="p-3 text-xs md:text-sm text-teal-800 text-center">{item.penerima}</td>
                         <td className="p-3 text-xs md:text-sm text-teal-800 text-right font-medium">{formatRupiah(item.dana)}</td>
                         <td className="p-3 text-center">

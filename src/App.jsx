@@ -4,6 +4,9 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
+// Import Vercel Analytics
+import { Analytics } from '@vercel/analytics/react';
+
 const API_URL = "https://script.google.com/macros/s/AKfycbxYpfxaD8K4w4IqrQNqFr5E_bwuJe_3fFgdt0WhYB73t7zrighKphN9_afqBmtTAHjc/exec"; 
 
 export default function App() {
@@ -27,7 +30,25 @@ export default function App() {
   const [laporanProgramFilter, setLaporanProgramFilter] = useState('Semua');
 
   const posisiMalang = [-8.1345, 112.5746];
-  const CHART_COLORS = ['#0f766e', '#0ea5e9', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#f43f5e', '#3b82f6'];
+
+  // =========================================================
+  // 🎨 PENGATURAN WARNA KATEGORI PROGRAM, PIE CHART & PETA
+  // =========================================================
+  const CUSTOM_COLORS = {
+    'Surga Desa (Sumber Air untuk warga Desa)': '#0059ff', 
+    'Bedah Rumah': '#0ea5e9',                              
+    'Musholla Galvalum': '#8b5cf6',                        
+    'Griya Lansia': '#ec4899',                             
+    'Pendidikan Tahfidz Al Quran': '#f59e0b',              
+    'Warung Berkah': '#10b981',                            
+    'Dakwah Daerah Minoritas Muslim': '#f43f5e',           
+    'Santunan Yatim': '#3b82f6',                           
+    'Insentif Guru Ngaji': '#14b8a6',
+    'Semen Dakwah': '#a50000',                      
+  };
+
+  const FALLBACK_COLORS = ['#047a71', '#047a2b', '#3b7a04', '#7a7104', '#7a3504', '#7a0404', '#04317a', '#04087a', '#35047a', '#72047a', '#7a042b', ];
+  // =========================================================
 
   useEffect(() => {
     const fetchData = async () => {
@@ -98,7 +119,7 @@ export default function App() {
 
   const programColors = {};
   allPrograms.forEach((prog, index) => {
-    programColors[prog] = CHART_COLORS[index % CHART_COLORS.length];
+    programColors[prog] = CUSTOM_COLORS[prog] || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
   });
 
   const createCustomPin = (color) => {
@@ -120,7 +141,6 @@ export default function App() {
 
   const totalLokasi = filteredSpasial.length;
   
-  // Total Jumlah Jiwa Penerima (Masih dipertahankan untuk Card Dashboard Atas)
   const penerimaSpasialJiwa = filteredSpasial.reduce((acc, curr) => acc + (parseInt(String(curr.Jumlah_Jiwa).replace(/[^0-9]/g, '')) || 0), 0);
   const penerimaRegulerJiwa = filteredReguler.reduce((acc, curr) => acc + (parseInt(String(curr.Jumlah_Penerima).replace(/[^0-9]/g, '')) || 0), 0);
   const totalJiwaPenerima = penerimaSpasialJiwa + penerimaRegulerJiwa;
@@ -133,7 +153,6 @@ export default function App() {
   filteredSpasial.forEach(item => {
     const prog = item.Jenis_Program || 'Lainnya';
     if (!summaryMap[prog]) summaryMap[prog] = { penerimaTexts: [], dana: 0 };
-    // Kumpulkan teks asli penerima manfaat untuk tabel ringkasan
     if (item.Penerima_Manfaat) summaryMap[prog].penerimaTexts.push(item.Penerima_Manfaat);
     summaryMap[prog].dana += (parseInt(String(item.penggunaan_dana || item.Penggunaan_Dana || '0').replace(/[^0-9]/g, '')) || 0);
   });
@@ -145,7 +164,6 @@ export default function App() {
   });
 
   const programSummary = Object.keys(summaryMap).map(key => {
-    // Gabungkan teks unik agar tidak terlalu panjang, misal "20 KK, 15 KK"
     const uniqueTexts = [...new Set(summaryMap[key].penerimaTexts)].filter(Boolean);
     const penerimaTeksGabungan = uniqueTexts.length > 0 ? uniqueTexts.join(', ') : '-';
     return {
@@ -173,7 +191,7 @@ export default function App() {
       program: item.Jenis_Program,
       namaPenerima: item.Nama_Penerima || item.nama_penerima || '-', 
       wilayah: item.Kecamatan,
-      penerima: item.Penerima_Manfaat || '-', // Mengambil langsung dari kolom J Penerima_Manfaat
+      penerima: item.Penerima_Manfaat || '-', 
       dana: item.penggunaan_dana || item.Penggunaan_Dana,
       fotos: extractPhotos(item)
     })),
@@ -183,7 +201,7 @@ export default function App() {
       program: item.Jenis_Program,
       namaPenerima: item.Nama_Penerima || item.nama_penerima || item.Keterangan_Tambahan || item.Jenis_Program,
       wilayah: item.Wilayah_Kecamatan,
-      penerima: item.Jumlah_Penerima || '-', // Mengambil langsung dari kolom F Jumlah_Penerima
+      penerima: item.Jumlah_Penerima || '-', 
       dana: item.Total_Nominal,
       fotos: extractPhotos(item)
     }))
@@ -283,10 +301,7 @@ export default function App() {
                       <thead>
                         <tr className="border-b-2 border-teal-500/20 text-teal-800 text-xs uppercase tracking-wider">
                           <th className="pb-3 font-semibold">Jenis Program</th>
-                          
-                          {/* PERUBAHAN NAMA KOLOM DI DASHBOARD (Sesuai Permintaan Gambar) */}
                           <th className="pb-3 font-semibold text-center">Penerima</th>
-                          
                           <th className="pb-3 font-semibold text-right">Dana Tersalurkan</th>
                         </tr>
                       </thead>
@@ -300,7 +315,6 @@ export default function App() {
                                  <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: prog.color }}></div> 
                                  {prog.name}
                               </td>
-                              {/* Menampilkan text komplit (misal: "20 KK, 15 KK") */}
                               <td className="py-4 text-sm text-teal-800 text-center max-w-[150px] truncate" title={prog.penerima}>{prog.penerima}</td>
                               <td className="py-4 text-sm font-semibold text-teal-800 text-right">{formatRupiah(prog.dana)}</td>
                             </tr>
@@ -463,10 +477,7 @@ export default function App() {
                     <th className="p-3 text-xs md:text-sm font-semibold">Tgl / Periode</th>
                     <th className="p-3 text-xs md:text-sm font-semibold">Kategori</th>
                     <th className="p-3 text-xs md:text-sm font-semibold">Nama Penerima & Wilayah</th>
-                    
-                    {/* PERUBAHAN NAMA KOLOM DI LAPORAN (Sesuai Permintaan Gambar) */}
                     <th className="p-3 text-xs md:text-sm font-semibold text-center">Penerima</th>
-                    
                     <th className="p-3 text-xs md:text-sm font-semibold text-right">Nominal Dana</th>
                     <th className="p-3 text-xs md:text-sm font-semibold text-center">Dokumentasi</th>
                     <th className="p-3 text-xs md:text-sm font-semibold text-center">Aksi</th>
@@ -493,10 +504,7 @@ export default function App() {
                           <strong>{item.namaPenerima}</strong> <br/>
                           <span className="text-[10px] md:text-xs text-teal-700">{item.wilayah}</span>
                         </td>
-                        
-                        {/* Menampilkan isi text komplit (misal: "20 KK", "45 Guru Ngaji") */}
                         <td className="p-3 text-xs md:text-sm text-teal-800 text-center">{item.penerima}</td>
-                        
                         <td className="p-3 text-xs md:text-sm text-teal-800 text-right font-medium">{formatRupiah(item.dana)}</td>
                         <td className="p-3 text-center">
                           {item.fotos.length > 0 ? (
@@ -560,6 +568,9 @@ export default function App() {
         </div>
       )}
 
+      {/* Komponen Analytics dari Vercel diletakkan di sini */}
+      <Analytics />
+      
     </div>
   );
 }

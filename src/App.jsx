@@ -22,12 +22,16 @@ export default function App() {
   
   // Filter Dashboard
   const [selectedYear, setSelectedYear] = useState(currentYear);
+  
   // Filter Peta
   const [mapYearFilter, setMapYearFilter] = useState('Semua');
   const [mapProgramFilter, setMapProgramFilter] = useState('Semua');
+  const [mapAreaFilter, setMapAreaFilter] = useState('Semua'); // STATE BARU UNTUK AREA PETA
+
   // Filter Laporan (Default: Tahun berjalan & Semua program)
   const [laporanYearFilter, setLaporanYearFilter] = useState(currentYear);
   const [laporanProgramFilter, setLaporanProgramFilter] = useState('Semua');
+  const [laporanAreaFilter, setLaporanAreaFilter] = useState('Semua'); // STATE BARU UNTUK AREA LAPORAN
 
   const posisiMalang = [-8.1345, 112.5746];
 
@@ -106,7 +110,7 @@ export default function App() {
       .filter(url => url && url.trim() !== '');
   };
 
-  // --- PEMETAAN WARNA & KATEGORI GLOBAL ---
+  // --- PEMETAAN WARNA, KATEGORI GLOBAL, DAN AREA ---
   const allYears = [...new Set([
     ...dataSpasial.map(d => getYear(d.Tanggal_Update)),
     ...dataReguler.map(d => getYear(d.Periode_Laporan))
@@ -115,7 +119,13 @@ export default function App() {
   const allPrograms = [...new Set([
     ...dataSpasial.map(d => d.Jenis_Program),
     ...dataReguler.map(d => d.Jenis_Program)
-  ])].filter(Boolean);
+  ])].filter(Boolean).sort();
+
+  // MENGAMBIL DAFTAR AREA UNIK
+  const allAreas = [...new Set([
+    ...dataSpasial.map(d => d.Area),
+    ...dataReguler.map(d => d.Area)
+  ])].filter(Boolean).sort();
 
   const programColors = {};
   allPrograms.forEach((prog, index) => {
@@ -176,11 +186,12 @@ export default function App() {
   
   const pieData = programSummary.filter(d => d.dana > 0).map(d => ({ name: d.name, value: d.dana, color: d.color }));
 
-  // --- DATA PETA PUBLIK ---
+  // --- DATA PETA PUBLIK (DITAMBAH FILTER AREA) ---
   const mapFilteredData = dataSpasial.filter(item => {
     const isYearMatch = mapYearFilter === 'Semua' ? true : getYear(item.Tanggal_Update) === mapYearFilter;
     const isProgramMatch = mapProgramFilter === 'Semua' ? true : item.Jenis_Program === mapProgramFilter;
-    return isYearMatch && isProgramMatch;
+    const isAreaMatch = mapAreaFilter === 'Semua' ? true : item.Area === mapAreaFilter;
+    return isYearMatch && isProgramMatch && isAreaMatch;
   });
 
   // --- DATA LAPORAN ---
@@ -190,6 +201,7 @@ export default function App() {
       tanggal: item.Tanggal_Update,
       program: item.Jenis_Program,
       namaPenerima: item.Nama_Penerima || item.nama_penerima || '-', 
+      area: item.Area || 'Tidak Ditentukan', // MENGAMBIL DATA AREA
       wilayah: item.Kecamatan,
       penerima: item.Penerima_Manfaat || '-', 
       dana: item.penggunaan_dana || item.Penggunaan_Dana,
@@ -200,6 +212,7 @@ export default function App() {
       tanggal: item.Periode_Laporan,
       program: item.Jenis_Program,
       namaPenerima: item.Nama_Penerima || item.nama_penerima || item.Keterangan_Tambahan || item.Jenis_Program,
+      area: item.Area || 'Tidak Ditentukan', // MENGAMBIL DATA AREA
       wilayah: item.Wilayah_Kecamatan,
       penerima: item.Jumlah_Penerima || '-', 
       dana: item.Total_Nominal,
@@ -207,11 +220,12 @@ export default function App() {
     }))
   ];
 
-  // Terapkan Filter Khusus Laporan
+  // Terapkan Filter Khusus Laporan (DITAMBAH FILTER AREA)
   const filteredLaporan = baseLaporan.filter(item => {
     const matchYear = laporanYearFilter === 'Semua' ? true : getYear(item.tanggal) === laporanYearFilter;
     const matchProgram = laporanProgramFilter === 'Semua' ? true : item.program === laporanProgramFilter;
-    return matchYear && matchProgram;
+    const matchArea = laporanAreaFilter === 'Semua' ? true : item.area === laporanAreaFilter;
+    return matchYear && matchProgram && matchArea;
   });
 
   // --- FUNGSI SHARE WHATSAPP ---
@@ -219,13 +233,13 @@ export default function App() {
     const totalDanaLaporan = filteredLaporan.reduce((acc, curr) => acc + (parseInt(String(curr.dana).replace(/[^0-9]/g, '')) || 0), 0);
     const domainLengkap = window.location.host; 
     
-    const text = `*Laporan Penyaluran Bantuan NH Malang* 📊\nPeriode: ${laporanYearFilter}\nProgram: ${laporanProgramFilter}\n\nTotal Data: ${filteredLaporan.length} Penyaluran\nTotal Dana Tersalurkan: ${formatRupiah(totalDanaLaporan)}\n\nCek rincian & foto dokumentasi lengkap di:\n🌐 https://${domainLengkap}`;
+    const text = `*Laporan Penyaluran Bantuan NH Malang* 📊\nPeriode: ${laporanYearFilter}\nProgram: ${laporanProgramFilter}\nArea: ${laporanAreaFilter}\n\nTotal Data: ${filteredLaporan.length} Penyaluran\nTotal Dana Tersalurkan: ${formatRupiah(totalDanaLaporan)}\n\nCek rincian & foto dokumentasi lengkap di:\n🌐 https://${domainLengkap}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const handleShareRow = (item) => {
     const domainLengkap = window.location.host;
-    const text = `*Detail Penyaluran NH Malang* 🌿\n\nPenerima: ${item.namaPenerima}\nProgram: ${item.program}\nWilayah: ${item.wilayah}\nTanggal: ${formatDate(item.tanggal)}\nPenerima Manfaat: ${item.penerima}\nDana Disalurkan: ${formatRupiah(item.dana)}\n\nCek peta persebaran & dokumentasinya di:\n🌐 https://${domainLengkap}`;
+    const text = `*Detail Penyaluran NH Malang* 🌿\n\nPenerima: ${item.namaPenerima}\nProgram: ${item.program}\nArea: ${item.area}\nWilayah: ${item.wilayah}\nTanggal: ${formatDate(item.tanggal)}\nPenerima Manfaat: ${item.penerima}\nDana Disalurkan: ${formatRupiah(item.dana)}\n\nCek peta persebaran & dokumentasinya di:\n🌐 https://${domainLengkap}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -240,7 +254,7 @@ export default function App() {
       </div>
       <div className="flex gap-2 font-medium text-xs md:text-sm w-full md:w-auto overflow-x-auto pb-1 md:pb-0 hide-scrollbar">
         <button onClick={() => setActiveTab('dashboard')} className={`px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-teal-500 text-white shadow-md' : 'text-teal-800 hover:bg-white/50 border border-transparent'}`}>Dashboard</button>
-        <button onClick={() => setActiveTab('peta')} className={`px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition whitespace-nowrap ${activeTab === 'peta' ? 'bg-teal-500 text-white shadow-md' : 'text-teal-800 hover:bg-white/50 border border-transparent'}`}>Peta Publik</button>
+        <button onClick={() => setActiveTab('peta')} className={`px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition whitespace-nowrap ${activeTab === 'peta' ? 'bg-teal-500 text-white shadow-md' : 'text-teal-800 hover:bg-white/50 border border-transparent'}`}>Peta Penyaluran</button>
         <button onClick={() => setActiveTab('laporan')} className={`px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition whitespace-nowrap ${activeTab === 'laporan' ? 'bg-teal-500 text-white shadow-md' : 'text-teal-800 hover:bg-white/50 border border-transparent'}`}>Laporan</button>
       </div>
     </nav>
@@ -376,6 +390,7 @@ export default function App() {
 
           <div className="absolute top-28 left-4 md:left-6 z-[1000] liquid-glass rounded-2xl p-4 flex flex-col gap-3 shadow-md w-[calc(100%-2rem)] md:w-64 border border-white/50">
             <h3 className="text-sm font-bold text-teal-900 mb-1">Filter Peta</h3>
+            
             <div className="flex flex-col gap-1">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-teal-800">Tahun</label>
               <select className="w-full bg-white/50 border border-white/50 text-teal-900 text-sm rounded-lg focus:ring-teal-500 p-2 outline-none" value={mapYearFilter} onChange={(e) => { setMapYearFilter(e.target.value); setActiveMarker(null); }}>
@@ -383,15 +398,28 @@ export default function App() {
                 {allYears.map(yr => <option key={yr} value={yr}>{yr}</option>)}
               </select>
             </div>
+            
             <div className="flex flex-col gap-1">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-teal-800">Jenis Program</label>
               <select className="w-full bg-white/50 border border-white/50 text-teal-900 text-sm rounded-lg focus:ring-teal-500 p-2 outline-none" value={mapProgramFilter} onChange={(e) => { setMapProgramFilter(e.target.value); setActiveMarker(null); }}>
                 <option value="Semua">Semua Program</option>
-                {[...new Set(dataSpasial.map(d => d.Jenis_Program))].filter(Boolean).map(prog => (
+                {allPrograms.map(prog => (
                   <option key={prog} value={prog}>{prog}</option>
                 ))}
               </select>
             </div>
+
+            {/* TAMBAHAN DROPDOWN FILTER AREA DI PETA */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-teal-800">Area Wilayah</label>
+              <select className="w-full bg-white/50 border border-white/50 text-teal-900 text-sm rounded-lg focus:ring-teal-500 p-2 outline-none" value={mapAreaFilter} onChange={(e) => { setMapAreaFilter(e.target.value); setActiveMarker(null); }}>
+                <option value="Semua">Semua Area</option>
+                {allAreas.map(ar => (
+                  <option key={ar} value={ar}>{ar}</option>
+                ))}
+              </select>
+            </div>
+
           </div>
 
           <aside className="absolute bottom-4 left-4 right-4 md:top-28 md:bottom-auto md:left-auto md:right-4 z-[1000] md:w-80 liquid-glass rounded-2xl flex flex-col overflow-hidden max-h-[50vh] md:max-h-[75vh] shadow-xl transition-all">
@@ -403,7 +431,7 @@ export default function App() {
                     {activeMarker.Jenis_Program}
                   </span>
                   <h2 className="text-lg md:text-xl font-bold text-teal-950 mt-2 pr-6">{activeMarker.Nama_Penerima}</h2>
-                  <p className="text-xs md:text-sm text-teal-800">{activeMarker.Kecamatan}</p>
+                  <p className="text-xs md:text-sm text-teal-800">{activeMarker.Area} - {activeMarker.Kecamatan}</p>
                 </div>
                 <div className="flex-1 overflow-y-auto">
                   {extractPhotos(activeMarker).length > 0 && (
@@ -458,6 +486,17 @@ export default function App() {
                     <option value="Semua">Semua Program</option>
                     {allPrograms.map(prog => <option key={prog} value={prog}>{prog}</option>)}
                   </select>
+
+                  {/* TAMBAHAN DROPDOWN FILTER AREA DI LAPORAN */}
+                  <select 
+                    className="bg-white/50 border border-white/50 text-teal-900 font-semibold text-sm rounded-lg p-2 outline-none focus:ring-1 focus:ring-teal-500"
+                    value={laporanAreaFilter}
+                    onChange={(e) => setLaporanAreaFilter(e.target.value)}
+                  >
+                    <option value="Semua">Semua Area</option>
+                    {allAreas.map(ar => <option key={ar} value={ar}>{ar}</option>)}
+                  </select>
+
                 </div>
               </div>
               
@@ -502,7 +541,8 @@ export default function App() {
                         </td>
                         <td className="p-3 text-xs md:text-sm text-teal-900">
                           <strong>{item.namaPenerima}</strong> <br/>
-                          <span className="text-[10px] md:text-xs text-teal-700">{item.wilayah}</span>
+                          {/* MENAMBAHKAN INFORMASI AREA PADA TABEL */}
+                          <span className="text-[10px] md:text-xs text-teal-700">{item.area} - {item.wilayah}</span>
                         </td>
                         <td className="p-3 text-xs md:text-sm text-teal-800 text-center">{item.penerima}</td>
                         <td className="p-3 text-xs md:text-sm text-teal-800 text-right font-medium">{formatRupiah(item.dana)}</td>

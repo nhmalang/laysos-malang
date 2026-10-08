@@ -47,11 +47,11 @@ export default function App() {
     'Warung Berkah': '#10b981',                            
     'Dakwah Daerah Minoritas Muslim': '#f43f5e',           
     'Santunan Yatim': '#3b82f6',                           
-    'Insentif Guru Ngaji': '#14b8a6',
+    'Insentif Guru Ngaji': '#14b8a6', // Korda Utama
     'Semen Dakwah': '#a50000',                      
   };
 
-  const FALLBACK_COLORS = ['#047a71', '#047a2b', '#3b7a04', '#7a7104', '#7a3504', '#7a0404', '#04317a', '#04087a', '#35047a', '#72047a', '#7a042b', ];
+  const FALLBACK_COLORS = ['#047a71', '#047a2b', '#3b7a04', '#7a7104', '#7a3504', '#7a0404', '#04317a', '#04087a', '#35047a', '#72047a', '#7a042b'];
   // =========================================================
 
   useEffect(() => {
@@ -131,9 +131,11 @@ export default function App() {
     programColors[prog] = CUSTOM_COLORS[prog] || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
   });
 
-  const createCustomPin = (color) => {
-    const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="36" height="36"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="${color}" stroke="#ffffff" stroke-width="1.5"/></svg>`;
-    return L.divIcon({ className: 'bg-transparent border-none', html: svgIcon, iconSize: [36, 36], iconAnchor: [18, 36], popupAnchor: [0, -36] });
+  // FUNGSI PIN KUSTOM: Ukuran akan disesuaikan jika pin tersebut adalah Sub Korda
+  const createCustomPin = (color, isSubKorda = false) => {
+    const size = isSubKorda ? 26 : 36; // SUB KORDA ukurannya lebih kecil (26px), KORDA utama normal (36px)
+    const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="${color}" stroke="#ffffff" stroke-width="1.5"/></svg>`;
+    return L.divIcon({ className: 'bg-transparent border-none', html: svgIcon, iconSize: [size, size], iconAnchor: [size/2, size], popupAnchor: [0, -size] });
   };
 
   useEffect(() => {
@@ -199,28 +201,21 @@ export default function App() {
   if (activeMarker && activeMarker.IBUQU) {
     const ibu = String(activeMarker.IBUQU).toUpperCase();
     if (ibu.startsWith('KORDA')) {
-      // Mengambil angka/identitas kordanya (misal: "1" dari "KORDA 1")
       activeKordaGroup = ibu.replace('KORDA', '').trim();
     } else if (ibu.startsWith('SUB KORDA')) {
       activeKordaGroup = ibu.replace('SUB KORDA', '').trim();
     }
   }
 
-  // Filter tambahan untuk menyembunyikan/menampilkan SUB KORDA
   const visibleMapData = mapFilteredData.filter(item => {
     const ibuqu = String(item.IBUQU || '').toUpperCase();
     const isSub = ibuqu.startsWith('SUB KORDA');
-    
-    // Jika bukan SUB KORDA (termasuk KORDA Utama atau program lain), selalu tampilkan
     if (!isSub) return true; 
     
-    // Jika ini adalah SUB KORDA, tampilkan HANYA JIKA sedang mengklik group Korda yang sama
     if (isSub && activeKordaGroup) {
       const subNumber = ibuqu.replace('SUB KORDA', '').trim();
       return subNumber === activeKordaGroup;
     }
-    
-    // Sembunyikan SUB KORDA secara default
     return false; 
   });
   // =======================================================
@@ -401,14 +396,26 @@ export default function App() {
           <MapContainer center={posisiMalang} zoom={11} zoomControl={false} style={{ height: "100vh", width: "100vw", zIndex: 0 }}>
             <TileLayer attribution='&copy; OSM' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             
-            {/* PASTIKAN DISINI MENGGUNAKAN visibleMapData */}
             {!loading && visibleMapData.map((item, index) => {
               const lat = parseFloat(String(item.Latitude).replace(',', '.'));
               const lng = parseFloat(String(item.Longitude).replace(',', '.'));
               if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
-              const pinColor = programColors[item.Jenis_Program] || '#94a3b8';
+              
+              // LOGIKA WARNA KHUSUS UNTUK SUB KORDA
+              let pinColor = programColors[item.Jenis_Program] || '#94a3b8';
+              const isSubKorda = item.IBUQU && String(item.IBUQU).toUpperCase().startsWith('SUB KORDA');
+              
+              if (isSubKorda) {
+                  // Jika ini adalah SUB KORDA dari Insentif Guru Ngaji
+                  if (item.Jenis_Program === 'Insentif Guru Ngaji') {
+                      pinColor = '#5eead4'; // Warna teal yang lebih terang/muda dari #14b8a6
+                  } else {
+                      pinColor = '#cbd5e1'; // Fallback default
+                  }
+              }
+
               return (
-                <Marker key={index} position={[lat, lng]} icon={createCustomPin(pinColor)} eventHandlers={{ click: () => setActiveMarker(item) }}>
+                <Marker key={index} position={[lat, lng]} icon={createCustomPin(pinColor, isSubKorda)} eventHandlers={{ click: () => setActiveMarker(item) }}>
                   <Popup>
                     <div className="font-sans text-center">
                       <h3 className="font-bold text-teal-800">{item.Nama_Penerima}</h3>
@@ -422,6 +429,7 @@ export default function App() {
 
           <div className="absolute top-28 left-4 md:left-6 z-[1000] liquid-glass rounded-2xl p-4 flex flex-col gap-3 shadow-md w-[calc(100%-2rem)] md:w-64 border border-white/50">
             <h3 className="text-sm font-bold text-teal-900 mb-1">Filter Peta</h3>
+            
             <div className="flex flex-col gap-1">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-teal-800">Tahun</label>
               <select className="w-full bg-white/50 border border-white/50 text-teal-900 text-sm rounded-lg focus:ring-teal-500 p-2 outline-none" value={mapYearFilter} onChange={(e) => { setMapYearFilter(e.target.value); setActiveMarker(null); }}>
@@ -429,6 +437,7 @@ export default function App() {
                 {allYears.map(yr => <option key={yr} value={yr}>{yr}</option>)}
               </select>
             </div>
+            
             <div className="flex flex-col gap-1">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-teal-800">Jenis Program</label>
               <select className="w-full bg-white/50 border border-white/50 text-teal-900 text-sm rounded-lg focus:ring-teal-500 p-2 outline-none" value={mapProgramFilter} onChange={(e) => { setMapProgramFilter(e.target.value); setActiveMarker(null); }}>
@@ -438,6 +447,7 @@ export default function App() {
                 ))}
               </select>
             </div>
+
             <div className="flex flex-col gap-1">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-teal-800">Area Wilayah</label>
               <select className="w-full bg-white/50 border border-white/50 text-teal-900 text-sm rounded-lg focus:ring-teal-500 p-2 outline-none" value={mapAreaFilter} onChange={(e) => { setMapAreaFilter(e.target.value); setActiveMarker(null); }}>
@@ -447,6 +457,7 @@ export default function App() {
                 ))}
               </select>
             </div>
+
           </div>
 
           <aside className="absolute bottom-4 left-4 right-4 md:top-28 md:bottom-auto md:left-auto md:right-4 z-[1000] md:w-80 liquid-glass rounded-2xl flex flex-col overflow-hidden max-h-[50vh] md:max-h-[75vh] shadow-xl transition-all">
@@ -461,7 +472,6 @@ export default function App() {
                   <h2 className="text-lg md:text-xl font-bold text-teal-950 mt-2 pr-6">{activeMarker.Nama_Penerima}</h2>
                   <p className="text-xs md:text-sm text-teal-800">{activeMarker.Area} - {activeMarker.Kecamatan}</p>
                   
-                  {/* MENAMPILKAN STATUS IBUQU DI PANEL (Contoh: "KORDA 1" / "SUB KORDA 1") */}
                   {activeMarker.IBUQU && (
                      <p className="text-[11px] font-semibold text-amber-700/80 mt-1 uppercase tracking-wide bg-amber-500/10 px-2 py-1 rounded w-max border border-amber-500/20">{activeMarker.IBUQU}</p>
                   )}

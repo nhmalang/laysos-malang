@@ -47,7 +47,7 @@ export default function App() {
     'Warung Berkah': '#10b981',                            
     'Dakwah Daerah Minoritas Muslim': '#f43f5e',           
     'Santunan Yatim': '#3b82f6',                           
-    'Insentif Guru Ngaji': '#14b8a6', // Korda Utama
+    'Insentif Guru Ngaji': '#068c7d', // Korda Utama
     'Semen Dakwah': '#a50000',                      
   };
 

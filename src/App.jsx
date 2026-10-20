@@ -7,6 +7,9 @@ import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recha
 // Import Vercel Analytics
 import { Analytics } from '@vercel/analytics/react';
 
+// IMPORT MARKER CLUSTER (Tambahan Baru)
+import MarkerClusterGroup from 'react-leaflet-cluster';
+
 const API_URL = "https://script.google.com/macros/s/AKfycbxYpfxaD8K4w4IqrQNqFr5E_bwuJe_3fFgdt0WhYB73t7zrighKphN9_afqBmtTAHjc/exec"; 
 
 export default function App() {
@@ -20,24 +23,17 @@ export default function App() {
 
   const currentYear = new Date().getFullYear().toString();
   
-  // Filter Dashboard
   const [selectedYear, setSelectedYear] = useState(currentYear);
-  
-  // Filter Peta
   const [mapYearFilter, setMapYearFilter] = useState('Semua');
   const [mapProgramFilter, setMapProgramFilter] = useState('Semua');
   const [mapAreaFilter, setMapAreaFilter] = useState('Semua');
 
-  // Filter Laporan (Default: Tahun berjalan & Semua program)
   const [laporanYearFilter, setLaporanYearFilter] = useState(currentYear);
   const [laporanProgramFilter, setLaporanProgramFilter] = useState('Semua');
   const [laporanAreaFilter, setLaporanAreaFilter] = useState('Semua');
 
   const posisiMalang = [-8.1345, 112.5746];
 
-  // =========================================================
-  // 🎨 PENGATURAN WARNA KATEGORI PROGRAM, PIE CHART & PETA
-  // =========================================================
   const CUSTOM_COLORS = {
     'Surga Desa (Sumber Air untuk warga Desa)': '#0059ff', 
     'Bedah Rumah': '#0ea5e9',                              
@@ -47,12 +43,11 @@ export default function App() {
     'Warung Berkah': '#10b981',                            
     'Dakwah Daerah Minoritas Muslim': '#f43f5e',           
     'Santunan Yatim': '#3b82f6',                           
-    'Insentif Guru Ngaji': '#068c7d', // Korda Utama
+    'Insentif Guru Ngaji': '#14b8a6', 
     'Semen Dakwah': '#a50000',                      
   };
 
   const FALLBACK_COLORS = ['#047a71', '#047a2b', '#3b7a04', '#7a7104', '#7a3504', '#7a0404', '#04317a', '#04087a', '#35047a', '#72047a', '#7a042b'];
-  // =========================================================
 
   useEffect(() => {
     const fetchData = async () => {
@@ -72,7 +67,6 @@ export default function App() {
     fetchData();
   }, []);
 
-  // --- HELPER FORMATTING ---
   const formatRupiah = (angka) => {
     const num = parseInt(String(angka).replace(/[^0-9]/g, ''));
     if (isNaN(num)) return angka;
@@ -110,7 +104,6 @@ export default function App() {
       .filter(url => url && url.trim() !== '');
   };
 
-  // --- PEMETAAN WARNA, KATEGORI GLOBAL, DAN AREA ---
   const allYears = [...new Set([
     ...dataSpasial.map(d => getYear(d.Tanggal_Update)),
     ...dataReguler.map(d => getYear(d.Periode_Laporan))
@@ -131,11 +124,19 @@ export default function App() {
     programColors[prog] = CUSTOM_COLORS[prog] || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
   });
 
-  // FUNGSI PIN KUSTOM: Ukuran akan disesuaikan jika pin tersebut adalah Sub Korda
   const createCustomPin = (color, isSubKorda = false) => {
-    const size = isSubKorda ? 30 : 36; // SUB KORDA ukurannya lebih kecil (26px), KORDA utama normal (36px)
+    const size = isSubKorda ? 26 : 36; 
     const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="${color}" stroke="#ffffff" stroke-width="1.5"/></svg>`;
     return L.divIcon({ className: 'bg-transparent border-none', html: svgIcon, iconSize: [size, size], iconAnchor: [size/2, size], popupAnchor: [0, -size] });
+  };
+
+  // ICON CLUSTER CUSTOM AGAR WARNANYA COCOK DENGAN TEMA TEAL/HIJAU NH
+  const createCustomClusterIcon = (cluster) => {
+    return L.divIcon({
+      html: `<div class="bg-teal-600/90 text-white font-bold w-10 h-10 rounded-full flex items-center justify-center border-4 border-white shadow-lg backdrop-blur-sm shadow-teal-900/50"><span>${cluster.getChildCount()}</span></div>`,
+      className: 'custom-marker-cluster',
+      iconSize: L.point(40, 40, true),
+    });
   };
 
   useEffect(() => {
@@ -145,7 +146,6 @@ export default function App() {
     }
   }, [loading, allYears, selectedYear, laporanYearFilter]);
 
-  // --- DATA DASHBOARD ---
   const filteredSpasial = selectedYear === 'Semua' ? dataSpasial : dataSpasial.filter(d => getYear(d.Tanggal_Update) === selectedYear);
   const filteredReguler = selectedYear === 'Semua' ? dataReguler : dataReguler.filter(d => getYear(d.Periode_Laporan) === selectedYear);
 
@@ -186,7 +186,6 @@ export default function App() {
   
   const pieData = programSummary.filter(d => d.dana > 0).map(d => ({ name: d.name, value: d.dana, color: d.color }));
 
-  // --- DATA PETA PUBLIK ---
   const mapFilteredData = dataSpasial.filter(item => {
     const isYearMatch = mapYearFilter === 'Semua' ? true : getYear(item.Tanggal_Update) === mapYearFilter;
     const isProgramMatch = mapProgramFilter === 'Semua' ? true : item.Jenis_Program === mapProgramFilter;
@@ -194,9 +193,6 @@ export default function App() {
     return isYearMatch && isProgramMatch && isAreaMatch;
   });
 
-  // =======================================================
-  // 🌟 LOGIKA HIERARKI IBUQU (KORDA & SUB KORDA) UNTUK PETA
-  // =======================================================
   let activeKordaGroup = null;
   if (activeMarker && activeMarker.IBUQU) {
     const ibu = String(activeMarker.IBUQU).toUpperCase();
@@ -218,9 +214,7 @@ export default function App() {
     }
     return false; 
   });
-  // =======================================================
 
-  // --- DATA LAPORAN ---
   const baseLaporan = [
     ...dataSpasial.map(item => ({
       kategori: 'Infrastruktur',
@@ -253,7 +247,6 @@ export default function App() {
     return matchYear && matchProgram && matchArea;
   });
 
-  // --- FUNGSI SHARE WHATSAPP ---
   const handleShareGlobal = () => {
     const totalDanaLaporan = filteredLaporan.reduce((acc, curr) => acc + (parseInt(String(curr.dana).replace(/[^0-9]/g, '')) || 0), 0);
     const domainLengkap = window.location.host; 
@@ -389,42 +382,48 @@ export default function App() {
       )}
 
       {/* ========================================= */}
-      {/* PETA PUBLIK                               */}
+      {/* PETA PUBLIK DENGAN MARKER CLUSTER         */}
       {/* ========================================= */}
       {activeTab === 'peta' && (
         <>
           <MapContainer center={posisiMalang} zoom={11} zoomControl={false} style={{ height: "100vh", width: "100vw", zIndex: 0 }}>
             <TileLayer attribution='&copy; OSM' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             
-            {!loading && visibleMapData.map((item, index) => {
-              const lat = parseFloat(String(item.Latitude).replace(',', '.'));
-              const lng = parseFloat(String(item.Longitude).replace(',', '.'));
-              if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
-              
-              // LOGIKA WARNA KHUSUS UNTUK SUB KORDA
-              let pinColor = programColors[item.Jenis_Program] || '#94a3b8';
-              const isSubKorda = item.IBUQU && String(item.IBUQU).toUpperCase().startsWith('SUB KORDA');
-              
-              if (isSubKorda) {
-                  // Jika ini adalah SUB KORDA dari Insentif Guru Ngaji
-                  if (item.Jenis_Program === 'Insentif Guru Ngaji') {
-                      pinColor = '#5eead4'; // Warna teal yang lebih terang/muda dari #14b8a6
-                  } else {
-                      pinColor = '#cbd5e1'; // Fallback default
-                  }
-              }
+            {/* Bungkus Marker dengan MarkerClusterGroup */}
+            <MarkerClusterGroup 
+               chunkedLoading 
+               iconCreateFunction={createCustomClusterIcon}
+               maxClusterRadius={40} // Jarak radius untuk menggabungkan PIN yang berdekatan
+               showCoverageOnHover={false} // Menghilangkan garis biru ketika klaster di-hover
+            >
+              {!loading && visibleMapData.map((item, index) => {
+                const lat = parseFloat(String(item.Latitude).replace(',', '.'));
+                const lng = parseFloat(String(item.Longitude).replace(',', '.'));
+                if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+                
+                let pinColor = programColors[item.Jenis_Program] || '#94a3b8';
+                const isSubKorda = item.IBUQU && String(item.IBUQU).toUpperCase().startsWith('SUB KORDA');
+                
+                if (isSubKorda) {
+                    if (item.Jenis_Program === 'Insentif Guru Ngaji') {
+                        pinColor = '#5eead4'; 
+                    } else {
+                        pinColor = '#cbd5e1'; 
+                    }
+                }
 
-              return (
-                <Marker key={index} position={[lat, lng]} icon={createCustomPin(pinColor, isSubKorda)} eventHandlers={{ click: () => setActiveMarker(item) }}>
-                  <Popup>
-                    <div className="font-sans text-center">
-                      <h3 className="font-bold text-teal-800">{item.Nama_Penerima}</h3>
-                      <p className="text-xs text-slate-600">{item.Jenis_Program}</p>
-                    </div>
-                  </Popup>
-                </Marker>
-              );
-            })}
+                return (
+                  <Marker key={index} position={[lat, lng]} icon={createCustomPin(pinColor, isSubKorda)} eventHandlers={{ click: () => setActiveMarker(item) }}>
+                    <Popup>
+                      <div className="font-sans text-center">
+                        <h3 className="font-bold text-teal-800">{item.Nama_Penerima}</h3>
+                        <p className="text-xs text-slate-600">{item.Jenis_Program}</p>
+                      </div>
+                    </Popup>
+                  </Marker>
+                );
+              })}
+            </MarkerClusterGroup>
           </MapContainer>
 
           <div className="absolute top-28 left-4 md:left-6 z-[1000] liquid-glass rounded-2xl p-4 flex flex-col gap-3 shadow-md w-[calc(100%-2rem)] md:w-64 border border-white/50">

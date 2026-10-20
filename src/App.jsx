@@ -40,7 +40,7 @@ export default function App() {
     'Musholla Galvalum': '#8b5cf6',                        
     'Griya Lansia': '#ec4899',                             
     'Pendidikan Tahfidz Al Quran': '#f59e0b',              
-    'Warung Berkah': '#10b981',                            
+    'Warung Berkah': '#00442d',                            
     'Dakwah Daerah Minoritas Muslim': '#f43f5e',           
     'Santunan Yatim': '#3b82f6',                           
     'Insentif Guru Ngaji': '#14b8a6', 
